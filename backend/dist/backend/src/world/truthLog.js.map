@@ -1,0 +1,1 @@
+{"version":3,"file":"truthLog.js","sourceRoot":"","sources":["../../../../src/world/truthLog.ts"],"names":[],"mappings":";;;AAOA,MAAa,QAAQ;IACF,OAAO,GAAiB,EAAE,CAAA;IAE3C,MAAM,CAAC,KAAiB;QACtB,IAAI,CAAC,OAAO,CAAC,IAAI,CAAC,KAAK,CAAC,CAAA;IAC1B,CAAC;IAED,QAAQ;QACN,OAAO,CAAC,GAAG,IAAI,CAAC,OAAO,CAAC,CAAA;IAC1B,CAAC;CACF;AAVD,4BAUC"}

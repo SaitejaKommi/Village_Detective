@@ -1,71 +1,220 @@
-// This file contains the types for the actions that can be performed in the game.
-type Join =  {
-    sessionId?: string
+export type Difficulty = 'easy' | 'medium' | 'hard'
+
+export type ErrorCode =
+  | 'INVALID_MESSAGE'
+  | 'NO_ACTIVE_CASE'
+  | 'CASE_ALREADY_STARTED'
+  | 'CASE_ALREADY_SOLVED'
+  | 'INSUFFICIENT_DIAMONDS'
+  | 'HINT_CAP_REACHED'
+  | 'RATE_LIMITED'
+  | 'NPC_NOT_FOUND'
+  | 'CLUE_NOT_FOUND'
+  | 'INVALID_MOVE'
+
+export type HintTier = 'direction' | 'location' | 'contradiction'
+
+export type DiamondReason = 'hint' | 'reward'
+
+export const MAX_TALK_LENGTH = 300
+export const STARTING_DIAMONDS = 3
+
+export type Position = {
+  x: number
+  y: number
 }
 
-type Move = {
-    dx: number
-    dy: number
+export type RoomState = {
+  id: string
+  name: string
+  adjacent: string[]
 }
 
-type Talk = {
-    npcId: string
-    text: string
+export type PlayerState = {
+  id: string
+  roomId: string
+  position: Position
 }
 
-type Inspect = {
-    clueId: string
+export type NpcState = {
+  id: string
+  name: string
+  roomId: string
+  position: Position
+  mood?: string
 }
 
-type Accuse = {
-    npcId: string
+export type ClueState = {
+  id: string
+  roomId: string
+  discovered: boolean
+  text?: string
 }
 
-export type Action = Join | Move | Talk | Inspect | Accuse
-
-
-
-
-type Session = {
-    sessionId : string
+export type SuspectInfo = {
+  id: string
+  name: string
+  role: string
+  portraitId?: string
 }
 
-type State = {
-    tick : number,
-    clock : number,
-    player : string,
-    npcs : string[],
-    clues  : string[]
+export type Briefing = {
+  title: string
+  victimId: string
+  victimName: string
+  scene: string
+  summary: string
 }
 
-type Npc_say = {
-    npcId : string,
-    text : string,
-    mood? : string
+export type TimelineEvent = {
+  time: number
+  place: string
+  actorId: string
+  text: string
 }
 
-type Event = {
-    kind: 'murder' | 'clue' | 'info',
-    text: string
+export type JoinMessage = {
+  type: 'join'
+  playerId?: string
+  sessionId?: string
 }
 
-type Debug = {
-    npcId : string,
-    perception : string,
-    memory : string[],
-    thought : string
+export type MoveMessage = {
+  type: 'move'
+  dx: number
+  dy: number
 }
 
-type Game_over = {
-    won: boolean,
-    killerId: string,
-    timeline: string[],
-    secrets: Record<string, unknown>
+export type TalkMessage = {
+  type: 'talk'
+  npcId: string
+  text: string
 }
 
-type Error = {
-    code : number,
-    message : string
+export type InspectMessage = {
+  type: 'inspect'
+  clueId: string
 }
 
-export type { Session, State, Npc_say, Event, Debug, Game_over, Error }
+export type AccuseMessage = {
+  type: 'accuse'
+  npcId: string
+}
+
+export type GetProfileMessage = {
+  type: 'get_profile'
+}
+
+export type StartCaseMessage = {
+  type: 'start_case'
+  difficulty: Difficulty
+}
+
+export type HintRequestMessage = {
+  type: 'hint_request'
+}
+
+export type ClientMessage =
+  | JoinMessage
+  | MoveMessage
+  | TalkMessage
+  | InspectMessage
+  | AccuseMessage
+  | GetProfileMessage
+  | StartCaseMessage
+  | HintRequestMessage
+
+export type SessionMessage = {
+  type: 'session'
+  sessionId: string
+  playerId: string
+}
+
+export type StateMessage = {
+  type: 'state'
+  tick: number
+  clock: number
+  player: PlayerState
+  npcs: NpcState[]
+  clues: ClueState[]
+}
+
+export type NpcSayMessage = {
+  type: 'npc_say'
+  npcId: string
+  text: string
+  mood?: string
+}
+
+export type EventMessage = {
+  type: 'event'
+  kind: 'murder' | 'clue' | 'info'
+  text: string
+}
+
+export type DebugMessage = {
+  type: 'debug'
+  npcId: string
+  perception: string
+  memory: string[]
+  thought: string
+}
+
+export type GameOverMessage = {
+  type: 'game_over'
+  won: boolean
+  killerId: string
+  timeline: TimelineEvent[]
+  secrets: Record<string, string>
+}
+
+export type ErrorMessage = {
+  type: 'error'
+  code: ErrorCode
+  message: string
+}
+
+export type ProfileMessage = {
+  type: 'profile'
+  playerId: string
+  diamonds: number
+  casesSolved: number
+  outfitId: string
+}
+
+export type CaseStartedMessage = {
+  type: 'case_started'
+  caseId: string
+  difficulty: Difficulty
+  briefing: Briefing
+  rooms: RoomState[]
+  suspects: SuspectInfo[]
+}
+
+export type HintMessage = {
+  type: 'hint'
+  tier: HintTier
+  text: string
+  cost: number
+  diamonds: number
+  hintsLeft: number
+}
+
+export type DiamondsUpdateMessage = {
+  type: 'diamonds_update'
+  balance: number
+  reason: DiamondReason
+}
+
+export type ServerMessage =
+  | SessionMessage
+  | StateMessage
+  | NpcSayMessage
+  | EventMessage
+  | DebugMessage
+  | GameOverMessage
+  | ErrorMessage
+  | ProfileMessage
+  | CaseStartedMessage
+  | HintMessage
+  | DiamondsUpdateMessage
