@@ -449,3 +449,13 @@ button, input, textarea { font: inherit; color: inherit; }
 @media (min-width: 721px) and (min-height: 501px) {
   #app.cinema::before, #app.cinema::after { height: 9dvh; }
 }
+
+/* ---------- Finishing layer: subtle film grain + light vignette over the whole game ---------- */
+#fx { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+#fx .grain { position: absolute; inset: -80px; background-size: 160px 160px; opacity: 0.05; animation: grain 0.9s steps(6) infinite; }
+@keyframes grain {
+  0% { transform: translate(0, 0); } 17% { transform: translate(-37px, 22px); } 33% { transform: translate(28px, -41px); }
+  50% { transform: translate(-19px, -33px); } 67% { transform: translate(44px, 15px); } 83% { transform: translate(-26px, 38px); } 100% { transform: translate(0, 0); }
+}
+#fx .vig { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.28) 100%); }
+@media (prefers-reduced-motion: reduce) { #fx .grain { animation: none; } }
