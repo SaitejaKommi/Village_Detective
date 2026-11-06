@@ -190,6 +190,18 @@ function move(ctx: GameContext, conn: Connection, message: MoveMessage): void {
   const player = session.world.player
   if (!player) return
 
+  // The client owns the map, so it reports which room the player walked into. Accept the same room or an
+  // adjacent one (from world.json). Without this `player.roomId` never changed and `inspect` only worked in
+  // the starting room.
+  if (message.roomId && message.roomId !== player.roomId) {
+    const reachable = session.world.adjacentRooms(player.roomId).some((room) => room.id === message.roomId)
+    if (!reachable) {
+      fail(conn, 'INVALID_MOVE', 'You cannot go straight there')
+      return
+    }
+    player.roomId = message.roomId
+  }
+
   player.position = {
     x: Math.max(0, player.position.x + message.dx),
     y: Math.max(0, player.position.y + message.dy),
@@ -342,6 +354,7 @@ function accuse(ctx: GameContext, conn: Connection, message: AccuseMessage): voi
     killerId: outcome.killerId,
     timeline: session.caseFile.timeline,
     secrets,
+    reward,
   })
 
   if (reward > 0) {

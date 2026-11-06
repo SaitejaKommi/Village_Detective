@@ -85,6 +85,24 @@ assert.match(
   /footprints/i,
 )
 
+// The player starts in the foyer. A study clue is out of reach until the player walks there.
+send({ type: 'inspect', clueId: 'broken_glass' })
+const tooFar = await next((m) => m.type === 'error', 'clue in another room')
+assert.equal(tooFar.code, 'CLUE_NOT_FOUND')
+
+send({ type: 'move', dx: 0, dy: 0, roomId: 'kitchen' }) // the kitchen is not next to the foyer
+const notAdjacent = await next((m) => m.type === 'error', 'non-adjacent room')
+assert.equal(notAdjacent.code, 'INVALID_MOVE')
+
+send({ type: 'move', dx: 1, dy: 0, roomId: 'study' }) // the study is next to the foyer
+const inStudy = await next((m) => m.type === 'state' && m.player.roomId === 'study', 'state in the study')
+assert.equal(inStudy.player.roomId, 'study')
+
+send({ type: 'inspect', clueId: 'broken_glass' })
+const studyClue = await next((m) => m.type === 'event' && m.kind === 'clue', 'study clue event')
+assert.ok(studyClue.text.length > 0)
+await next((m) => m.type === 'state' && m.clues.some((c) => c.id === 'broken_glass' && c.discovered), 'study clue discovered')
+
 send({ type: 'talk', npcId: 'evelyn', text: 'Where were you at midnight?' })
 const reply = await next((m) => m.type === 'npc_say', 'npc_say')
 assert.equal(reply.npcId, 'evelyn')
@@ -112,6 +130,7 @@ const reward = await next(
 )
 assert.equal(gameOver.won, true)
 assert.equal(gameOver.killerId, 'victor')
+assert.equal(gameOver.reward, 1) // easy difficulty
 assert.ok(gameOver.timeline.length > 0)
 assert.equal(reward.reason, 'reward')
 assert.equal(reward.balance, 3)

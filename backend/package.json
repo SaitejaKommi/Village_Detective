@@ -12,7 +12,7 @@
     "lint:postman": "npx -y postman-cli collection lint \"../postman/collections/Village of Liars\""
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^12.11.1",
     "dotenv": "^16.4.7",
     "ws": "^8.18.0",
     "zod": "^3.24.1"
