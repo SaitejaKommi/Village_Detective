@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '3. Start case (easy)'
+order: 3000
+contentType: json
+content: |-
+  {"type":"start_case","difficulty":"easy"}

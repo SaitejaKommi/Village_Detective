@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '7. Hint again (rate limit)'
+order: 7000
+contentType: json
+content: |-
+  {"type":"hint_request"}

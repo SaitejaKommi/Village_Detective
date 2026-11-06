@@ -1,0 +1,7 @@
+$kind: websocket-request
+name: '02 Get profile'
+description: |-
+  Expected: `session`, then `profile` with `diamonds: 3` for a new player.
+url: '{{wsUrl}}'
+order: 2000
+messages: './.resources/02 Get profile.resources/messages'

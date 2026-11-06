@@ -1,0 +1,10 @@
+{
+  "rooms": [
+    { "id": "foyer", "name": "Grand Foyer", "adjacent": ["drawing_room", "dining_room", "study"] },
+    { "id": "drawing_room", "name": "Drawing Room", "adjacent": ["foyer", "library"] },
+    { "id": "dining_room", "name": "Dining Room", "adjacent": ["foyer", "kitchen"] },
+    { "id": "study", "name": "Study", "adjacent": ["foyer", "library"] },
+    { "id": "library", "name": "Library", "adjacent": ["drawing_room", "study"] },
+    { "id": "kitchen", "name": "Kitchen", "adjacent": ["dining_room"] }
+  ]
+}

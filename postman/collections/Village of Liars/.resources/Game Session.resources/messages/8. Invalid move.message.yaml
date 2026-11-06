@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '8. Invalid move'
+order: 8000
+contentType: json
+content: |-
+  {"type":"move","dx":99,"dy":0}

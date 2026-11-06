@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '4. Inspect muddy footprints'
+order: 4000
+contentType: json
+content: |-
+  {"type":"inspect","clueId":"muddy_footprints"}

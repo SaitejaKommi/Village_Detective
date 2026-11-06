@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '1. Join'
+order: 1000
+contentType: json
+content: |-
+  {"type":"join"}

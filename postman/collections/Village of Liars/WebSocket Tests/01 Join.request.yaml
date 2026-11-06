@@ -1,0 +1,7 @@
+$kind: websocket-request
+name: '01 Join'
+description: |-
+  Expected: `session` frame with `playerId` and `sessionId`.
+url: '{{wsUrl}}'
+order: 1000
+messages: './.resources/01 Join.resources/messages'

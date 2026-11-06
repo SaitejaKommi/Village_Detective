@@ -1,0 +1,8 @@
+$kind: websocket-request
+name: '06 Request hint'
+description: |-
+  Expected: `session`, `case_started`, `state`, then `hint` (tier `direction`,
+  cost 1, diamonds 2) and `diamonds_update` with reason `hint`.
+url: '{{wsUrl}}'
+order: 6000
+messages: './.resources/06 Request hint.resources/messages'

@@ -1,0 +1,41 @@
+{
+  "caseId": "blackwood-manor",
+  "title": "The Blackwood Manor Murder",
+  "victimId": "alistair",
+  "killerId": "victor",
+  "scene": "The study of Blackwood Manor, shortly after midnight.",
+  "summary": "Alistair Blackwood was found dead in his study after a night of rain and raised voices. Five people remain in the house, and each of them is hiding something.",
+  "coverStory": "You were in the drawing room all night and only heard the commotion from the study.",
+  "timeline": [
+    { "time": 23, "place": "Study", "actorId": "victor", "text": "Victor confronts Alistair about the missing company funds." },
+    { "time": 23, "place": "Study", "actorId": "victor", "text": "Victor strikes Alistair and stages the scene before leaving." },
+    { "time": 24, "place": "Kitchen", "actorId": "margaret", "text": "Margaret hears a heavy thud but stays in the kitchen." },
+    { "time": 24, "place": "Drawing Room", "actorId": "evelyn", "text": "Evelyn notices Victor return from the study, breathing hard." }
+  ],
+  "clues": [
+    { "id": "torn_ledger", "roomId": "study", "text": "A torn ledger page shows transfers routed to an offshore account.", "relatedTo": "victor", "visibility": "medium" },
+    { "id": "broken_glass", "roomId": "study", "text": "A shattered tumbler lies beside the desk, wiped clean of prints.", "relatedTo": "victor", "visibility": "high" },
+    { "id": "muddy_footprints", "roomId": "foyer", "text": "Muddy footprints lead from the front door to the study and back.", "relatedTo": "victor", "visibility": "low" },
+    { "id": "signed_will", "roomId": "study", "text": "An unsigned will draft leaves the estate to Evelyn and removes Victor as a beneficiary.", "relatedTo": "alistair", "visibility": "medium" },
+    { "id": "pocket_watch", "roomId": "library", "text": "A stopped pocket watch reads 12:07, well after the household claims to have retired.", "relatedTo": "julian", "visibility": "low" },
+    { "id": "divorce_letter", "roomId": "drawing_room", "text": "A solicitor's letter addressed to Evelyn is tucked behind a cushion.", "relatedTo": "evelyn", "visibility": "high" },
+    { "id": "kitchen_clock", "roomId": "kitchen", "text": "The kitchen clock stopped at 12:05, matching the sound Margaret heard.", "relatedTo": "margaret", "visibility": "low" }
+  ],
+  "npcSeeds": [
+    { "npcId": "evelyn", "memories": ["You saw Victor return from the study with his collar loose."] },
+    { "npcId": "harold", "memories": ["You opened the study safe for Alistair before dinner."] },
+    { "npcId": "julian", "memories": ["You heard Victor and your father arguing about money."] },
+    { "npcId": "margaret", "memories": ["You heard a thud at about five past midnight."] },
+    { "npcId": "victor", "memories": ["You know the ledger page is missing from the study."] }
+  ],
+  "redHerrings": [
+    { "id": "bloody_glove", "roomId": "kitchen", "text": "A bloodstained glove that turns out to be from the kitchen staff's cut hand.", "difficulty": "easy" },
+    { "id": "love_letter", "roomId": "drawing_room", "text": "A love letter suggesting an affair that never happened.", "difficulty": "medium" },
+    { "id": "papered_wall", "roomId": "library", "text": "A hidden wall panel containing old debts unrelated to the murder.", "difficulty": "hard" }
+  ],
+  "hintTemplates": [
+    { "tier": "direction", "template": "The person with the strongest financial motive was the last to see the victim." },
+    { "tier": "location", "template": "The study's desk holds a document that changes who benefits from the estate." },
+    { "tier": "contradiction", "template": "Compare what the staff heard near midnight with the time the study clock was stopped." }
+  ]
+}

@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: 'Hint again immediately'
+order: 4000
+contentType: json
+content: |-
+  {"type":"hint_request"}

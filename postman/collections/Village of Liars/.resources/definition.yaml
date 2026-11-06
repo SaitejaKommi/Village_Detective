@@ -1,0 +1,22 @@
+$kind: collection
+name: Village of Liars
+description: |-
+  Manual WebSocket flow for the Village of Liars backend.
+
+  Start the backend normally:
+
+      cd backend
+      npm run dev
+
+  Open **Game Session**, connect to `{{wsUrl}}`, then send the saved messages
+  from top to bottom. The connection stays open, so the session created by
+  **1. Join** is reused by every later message. Server frames appear in the
+  message log.
+
+  The backend is WebSocket-only; there are no HTTP endpoints.
+
+  Saved messages live under `.resources/<request>.resources/messages/` and are
+  referenced from each request with a `messages:` path. This is the format
+  Postman and `postman collection lint` expect.
+variables:
+  wsUrl: ws://localhost:8080

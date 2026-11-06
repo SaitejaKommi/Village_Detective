@@ -1,0 +1,8 @@
+$kind: websocket-request
+name: '05 Talk to suspect'
+description: |-
+  Expected: `session`, `case_started`, `state`, then `npc_say` from Evelyn.
+  The text is generated, so only assert that it is non-empty.
+url: '{{wsUrl}}'
+order: 5000
+messages: './.resources/05 Talk to suspect.resources/messages'

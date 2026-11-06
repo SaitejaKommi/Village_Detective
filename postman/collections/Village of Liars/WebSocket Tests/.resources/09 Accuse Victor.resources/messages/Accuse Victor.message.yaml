@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: 'Accuse Victor'
+order: 3000
+contentType: json
+content: |-
+  {"type":"accuse","npcId":"victor"}

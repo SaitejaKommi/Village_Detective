@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '2. Get profile'
+order: 2000
+contentType: json
+content: |-
+  {"type":"get_profile"}

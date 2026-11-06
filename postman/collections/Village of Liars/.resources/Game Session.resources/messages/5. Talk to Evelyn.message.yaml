@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '5. Talk to Evelyn'
+order: 5000
+contentType: json
+content: |-
+  {"type":"talk","npcId":"evelyn","text":"Where were you at midnight?"}

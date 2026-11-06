@@ -1,0 +1,8 @@
+$kind: websocket-request
+name: '08 Invalid move'
+description: |-
+  Expected: `session`, `case_started`, `state`, then `error` with code
+  `INVALID_MESSAGE` (`dx` is only allowed to be -1, 0 or 1).
+url: '{{wsUrl}}'
+order: 8000
+messages: './.resources/08 Invalid move.resources/messages'

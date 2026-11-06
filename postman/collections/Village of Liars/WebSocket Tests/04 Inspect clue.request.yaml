@@ -1,0 +1,8 @@
+$kind: websocket-request
+name: '04 Inspect clue'
+description: |-
+  Expected: `session`, `case_started`, `state`, then `event` of kind `clue`
+  describing the muddy footprints, followed by an updated `state`.
+url: '{{wsUrl}}'
+order: 4000
+messages: './.resources/04 Inspect clue.resources/messages'
