@@ -94,7 +94,7 @@ export function profileScreen(onBack: () => void): HTMLElement {
   const slots = ['Outfits', 'Hats', 'Accessories', 'Equipment'].map((n, i) =>
     i === 0
       ? h('div', { class: 'slot on' }, 'Classic trench')
-      : h('div', { class: 'slot' }, icon('lock'), n, 'Coming soon'));
+      : h('div', { class: 'slot' }, icon('lock'), h('span', null, n), h('span', { class: 'soon' }, 'Coming soon')));
   const el = h('div', null,
     h('div', { class: 'screen-head' }, backBtn(onBack), h('h2', null, 'Detective Profile')),
     h('div', { class: 'screen-body profile-grid' },

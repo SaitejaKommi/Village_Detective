@@ -42,7 +42,10 @@ class Flow {
   }
 
   /** Reconnecting / offline banner (screen 15). */
+  private lastConn = '';
   private syncConnection(status: string): void {
+    if (status === this.lastConn) return; // store updates every tick; only react to changes
+    this.lastConn = status;
     window.clearTimeout(this.connTimer);
     const root = document.getElementById('ui')!;
     const clearBanner = () => { this.banner?.remove(); this.banner = null; };

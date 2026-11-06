@@ -220,7 +220,7 @@ export class MockTransport implements Transport {
       const useDamning = id === this.killer;
       const c = useDamning ? s.damning : s.herring;
       const [x, y] = place(c.room);
-      list.push({ id: `c_${id}`, room: c.room, x, y, label: useDamning ? 'Evidence' : 'Item', title: c.title, text: c.text });
+      list.push({ id: `c_${id}`, room: c.room, x, y, label: 'Object', title: c.title, text: c.text });
     }
     this.clues = list;
   }

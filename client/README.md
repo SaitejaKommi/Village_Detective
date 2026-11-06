@@ -72,14 +72,22 @@ Jump straight to a screen. The mock starts a case automatically where needed.
 
 ## Testing
 
-With the dev server running:
+With the dev server running (all three use `playwright-core` with your installed Chrome, nothing is downloaded):
 
 ```powershell
-node scripts/e2e.mjs                                   # full loop on the mock, prints PASS/FAIL
-node scripts/shot.mjs "?screen=game" 390x844 out.png wait:2500   # screenshot at any size (TOUCH=1 for touch emulation)
+node scripts/e2e.mjs            # full loop on the mock: menu, case, move + walls, hints 3 to 2 to 0, accuse, ending, reload persistence
+node scripts/e2e-interact.mjs   # real interaction path: proximity prompt, E key, prompt button, tapping sprites, all five suspects, second case after restart
+node scripts/shot.mjs "?screen=game" 390x844 out.png wait:2500   # screenshot at any size (set TOUCH=1 for touch emulation)
 ```
 
-Both use `playwright-core` with your installed Chrome. Nothing is downloaded. Sizes checked: 360x640, 390x844, 844x390, 768x1024, 1280x720, 1920x1080.
+Real-server path with nothing listening (banner states, Retry, start-case timeout):
+
+```powershell
+$env:VITE_USE_MOCK='false'; npx vite --port 5174        # in one terminal
+$env:BASE_URL='http://localhost:5174'; node scripts/e2e-offline.mjs
+```
+
+Layouts were reviewed from screenshots at 360x640, 390x844, 844x390, 768x1024, 1280x720 and 1920x1080 (not every screen at every size: the game, interrogation, notebook, accusation, briefing and profile were covered on phone and tablet). The soft keyboard cannot be tested headless, so check typing in the interrogation on a real phone.
 
 ## Architecture
 

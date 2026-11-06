@@ -20,7 +20,8 @@ export class NpcSprite extends Phaser.GameObjects.Container {
     }).setOrigin(0.5).setResolution(3);
     this.add([shadow, this.sprite, label]);
     this.setSize(34, 50);
-    this.setInteractive(new Phaser.Geom.Rectangle(-24, -58, 48, 66), Phaser.Geom.Rectangle.Contains);
+    // Container hit areas are tested in the size box's top-left space, so add half the size.
+    this.setInteractive(new Phaser.Geom.Rectangle(-24 + 17, -58 + 25, 48, 66), Phaser.Geom.Rectangle.Contains);
     this.target.set(this.x, this.y);
     scene.add.existing(this);
   }
