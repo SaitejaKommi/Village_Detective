@@ -405,3 +405,23 @@ button, input, textarea { font: inherit; color: inherit; }
 /* Briefing: keep Begin reachable on short screens */
 .begin-bar { position: sticky; bottom: calc(-1 * var(--s-5)); padding: var(--s-4) 0 var(--s-2); background: linear-gradient(180deg, transparent, rgba(8, 8, 9, 0.95) 40%); }
 @media (max-height: 820px) { .suspect-chip .portrait { aspect-ratio: 4 / 3; } .victim .portrait { width: 64px; height: 76px; } }
+
+/* Modals: keep the action row reachable when content scrolls (e.g. the accusation grid on phones) */
+.modal .actions { position: sticky; bottom: calc(-1 * var(--s-5)); margin-inline: calc(-1 * var(--s-5)); padding: var(--s-3) var(--s-5) var(--s-3); background: linear-gradient(180deg, transparent, #101011 35%); }
+@media (max-width: 560px) {
+  .accuse-grid { grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
+  .accuse-card .portrait { aspect-ratio: 4 / 5; }
+  .accuse-card b { font-size: 0.95rem; }
+  .accuse-card small { display: none; }
+  .modal { padding: var(--s-4); }
+  .modal .actions { margin-inline: calc(-1 * var(--s-4)); padding-inline: var(--s-4); bottom: calc(-1 * var(--s-4)); }
+}
+
+@media (max-width: 560px) {
+  .tabs { padding-inline: var(--s-4); overflow-x: auto; }
+  .tab { padding: 0 12px; letter-spacing: 0.12em; font-size: 0.72rem; }
+  .nb-head { padding-left: var(--s-4); }
+  .nb-body { padding-inline: var(--s-4); }
+  .suspect-cards { grid-template-columns: repeat(2, 1fr); }
+  .s-card .portrait { aspect-ratio: 4 / 5; }
+}

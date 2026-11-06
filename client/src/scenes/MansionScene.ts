@@ -47,7 +47,7 @@ export class MansionScene extends Phaser.Scene {
     const px = start.x * TILE, py = (start.y + 2) * TILE;
     this.light = this.add.image(px, py - 16, 'light').setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.32).setScale(1.35).setDepth(5000);
     // Darken the whole mansion; the light pool around the detective brings the room back.
-    this.add.rectangle(0, 0, MAP_W * TILE, MAP_H * TILE, 0x04060a, 0.4).setOrigin(0).setDepth(4000);
+    this.add.rectangle(0, 0, MAP_W * TILE, MAP_H * TILE, 0x04060a, 0.32).setOrigin(0).setDepth(4000);
     const shadow = this.add.ellipse(0, 1, 20, 8, 0x000000, 0.45);
     this.playerSprite = this.add.image(0, -20, 'player');
     this.player = this.add.container(px, py, [shadow, this.playerSprite]);

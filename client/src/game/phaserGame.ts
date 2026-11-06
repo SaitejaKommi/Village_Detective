@@ -16,6 +16,7 @@ function ensureGame(): Phaser.Game {
     scene: [],
   });
   game.scene.add('MansionScene', MansionScene, false);
+  if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game; // dev-only handle for tests
   return game;
 }
 

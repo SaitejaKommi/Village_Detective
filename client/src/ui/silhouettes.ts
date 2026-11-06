@@ -28,9 +28,7 @@ const PARTS: Record<string, Parts> = {
     details: `
       <path d="M128 280 L150 336 L172 280" stroke="#7a1f1f" stroke-width="4" fill="none"/>
       ${Array.from({ length: 9 }, (_, i) => `<circle cx="${124 + i * 6.5}" cy="${262 + Math.sin((i / 8) * Math.PI) * 9}" r="3.6" fill="#efe9d8"/>`).join('')}
-      <circle cx="99" cy="234" r="3" fill="#efe9d8"/><circle cx="201" cy="234" r="3" fill="#efe9d8"/>
-      <ellipse cx="150" cy="229" rx="11" ry="3.2" fill="#7a1f1f"/>
-      <ellipse cx="208" cy="304" rx="13" ry="26" fill="#18181a" stroke="#e8e2d0" stroke-opacity=".5"/>
+                  <ellipse cx="208" cy="304" rx="13" ry="26" fill="#18181a" stroke="#e8e2d0" stroke-opacity=".5"/>
       <path d="M200 280 q8 12 16 0" stroke="#e8e2d0" stroke-opacity=".4" fill="none"/>`,
   },
   julian: {
