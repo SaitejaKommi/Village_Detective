@@ -3,6 +3,7 @@ import { audio } from '../audio/audioManager';
 import { npcDef, npcName, SUSPECT_IDS } from '../data/npcs';
 import { roomName } from '../data/mansion';
 import { net } from '../net/client';
+import { reducedMotion } from '../settings';
 import { bus, formatHour, store } from '../state/store';
 import { h, icon } from './dom';
 import { bindStore } from './menuScreens';
@@ -44,10 +45,14 @@ export function openInterrogation(npcId: string): void {
   const info = suspectInfo(npcId);
   let pending = false;
   let timer: number | undefined;
+  // Typewriter reveal for the newest reply. Tapping the transcript (or asking again) shows the rest.
+  let typing: { at: number; full: string; i: number } | null = null;
+  let typeTimer: number | undefined;
+  const live = h('div', { class: 'sr-only', 'aria-live': 'polite' });
 
   const thinkingWrap = h('div', { class: 'interro-portrait-wrap' }, portrait(npcId),
-    h('div', { class: 'nameplate' }, h('h2', null, info.name), h('div', { class: 'role' }, info.role)));
-  const transcript = h('div', { class: 'transcript', role: 'log', 'aria-live': 'polite' });
+    h('div', { class: 'key-light' }), h('div', { class: 'nameplate' }, h('h2', null, info.name), h('div', { class: 'role' }, info.role)));
+  const transcript = h('div', { class: 'transcript', role: 'log', 'aria-live': 'off' });
   const input = h('input', { type: 'text', maxlength: '300', placeholder: 'Ask a question…', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Question for ${info.name}`, 'data-autofocus': '' });
   const send = h('button', { class: 'btn icon primary', type: 'submit', 'aria-label': 'Ask' }, icon('send'));
   const count = h('div', { class: 'count' }, '0 / 300');
@@ -57,7 +62,7 @@ export function openInterrogation(npcId: string): void {
     h('button', { class: 'btn icon', type: 'button', 'aria-label': 'Open notebook', onclick: () => openNotebook() }, icon('notebook')),
     h('button', { class: 'btn icon', type: 'button', 'aria-label': 'Close', onclick: () => close() }, icon('close')),
   );
-  const panel = h('section', { class: 'interro', role: 'dialog', 'aria-label': `Interrogation: ${info.name}` }, thinkingWrap, tools, transcript, chips, form);
+  const panel = h('section', { class: 'interro', role: 'dialog', 'aria-label': `Interrogation: ${info.name}` }, thinkingWrap, tools, transcript, chips, form, live);
 
   const setPending = (p: boolean) => {
     pending = p;
@@ -76,14 +81,38 @@ export function openInterrogation(npcId: string): void {
     for (const l of lines) {
       transcript.append(h('div', { class: `line ${l.who}` },
         h('span', { class: 'who' }, l.who === 'you' ? 'Detective' : info.name.split(' ')[0]),
-        h('div', { class: 'said' }, l.text)));
+        h('div', { class: 'said' }, typing && typing.at === l.at ? typing.full.slice(0, typing.i) : l.text)));
     }
     if (pending) transcript.append(h('div', { class: 'thinking-dots', 'aria-label': `${info.name} is thinking` }, h('i'), h('i'), h('i')));
     chips.style.display = lines.length || pending ? 'none' : '';
     transcript.scrollTop = transcript.scrollHeight;
   };
 
+  const finishTyping = () => {
+    if (!typing) return;
+    window.clearInterval(typeTimer);
+    typing = null;
+    render();
+  };
+  const startTyping = (line: { at: number; text: string }) => {
+    live.textContent = line.text; // screen readers get the whole reply at once
+    if (reducedMotion()) return;
+    typing = { at: line.at, full: line.text, i: 0 };
+    window.clearInterval(typeTimer);
+    typeTimer = window.setInterval(() => {
+      if (!typing) return;
+      typing.i = Math.min(typing.full.length, typing.i + (typing.full.length > 160 ? 2 : 1));
+      const els = transcript.querySelectorAll('.line.npc .said');
+      const el = els[els.length - 1];
+      if (el) el.textContent = typing.full.slice(0, typing.i);
+      transcript.scrollTop = transcript.scrollHeight;
+      if (typing.i >= typing.full.length) { window.clearInterval(typeTimer); typing = null; }
+    }, 28);
+  };
+  transcript.addEventListener('click', finishTyping);
+
   const submit = () => {
+    finishTyping();
     const text = input.value.trim();
     if (!text || pending) return;
     input.value = ''; count.textContent = '0 / 300';
@@ -97,10 +126,17 @@ export function openInterrogation(npcId: string): void {
   // Keep the latest lines visible when the keyboard opens.
   input.addEventListener('focus', () => window.setTimeout(() => { transcript.scrollTop = transcript.scrollHeight; }, 250));
 
-  const offSay = net.on('npc_say', (p) => { if (p.npcId === npcId && pending) setPending(false); });
+  const offSay = net.on('npc_say', (p) => {
+    if (p.npcId !== npcId) return;
+    const all = store.state.transcripts[npcId] ?? [];
+    const last = all[all.length - 1];
+    if (last && last.who === 'npc') startTyping(last);
+    if (pending) setPending(false); else render();
+  });
   const offErr = net.on('error', (e) => { if (pending) { setPending(false); toast(friendlyError(e.code, e.message), 'error'); } });
   const close = () => closeOverlay(panel);
-  openOverlay(panel, { onClose: () => { offSay(); offErr(); window.clearTimeout(timer); bus.emit('interrogation:closed', npcId); } });
+  document.getElementById('app')?.classList.add('cinema');
+  openOverlay(panel, { onClose: () => { offSay(); offErr(); window.clearTimeout(timer); window.clearInterval(typeTimer); document.getElementById('app')?.classList.remove('cinema'); bus.emit('interrogation:closed', npcId); } });
   render();
 }
 
