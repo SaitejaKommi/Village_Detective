@@ -1,12 +1,13 @@
 export interface Settings {
   music: number; // 0..1
   effects: number; // 0..1
+  ambience: number; // 0..1 (the rain)
   mute: boolean;
   skipIntro: boolean;
 }
 
 const KEY = 'vol.settings';
-const DEFAULTS: Settings = { music: 0.6, effects: 0.8, mute: false, skipIntro: false };
+const DEFAULTS: Settings = { music: 0.6, effects: 0.8, ambience: 0.22, mute: false, skipIntro: false };
 
 let current: Settings = load();
 const listeners = new Set<(s: Settings) => void>();

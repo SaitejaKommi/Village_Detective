@@ -96,12 +96,10 @@ export function createHud(hd: HudHandlers): HTMLElement {
 
 function objectiveText(): string {
   const s = store.state;
-  const w = s.world;
-  const body = s.foundClues.some((c) => c.id === 'c_body');
-  if (!body) return `Examine the body in the ${roomName('study')}.`;
-  const talked = SUSPECT_IDS.filter((id) => (s.transcripts[id]?.length ?? 0) > 0).length;
-  const total = w?.clues.length ?? 0;
+  const total = s.world?.clues.length ?? 0;
   const found = s.foundClues.length;
+  const talked = SUSPECT_IDS.filter((id) => (s.transcripts[id]?.length ?? 0) > 0).length;
+  if (!talked && !found) return 'Question the household and search the rooms for evidence.';
   if (talked < SUSPECT_IDS.length) return `Question the household (${talked}/${SUSPECT_IDS.length}). Search the rooms (${found}/${total}).`;
   if (total && found < total) return `Search the remaining rooms (${found}/${total} found).`;
   return 'Compare statements and evidence in your notebook, then name the killer.';

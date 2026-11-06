@@ -19,6 +19,8 @@ class AudioManager {
   private rainOn = false;
   private musicMood: 'menu' | 'game' | null = null;
   private lastHover = 0;
+  /** Extra rain ducking: 1 in menus, lower during play so it stays under the music and voices. */
+  private rainDuck = 1;
 
   /** Call from a user gesture (the click gate). Safe to call more than once. */
   async unlock(): Promise<void> {
@@ -83,8 +85,12 @@ class AudioManager {
     this.master.gain.setTargetAtTime(s.mute ? 0 : 1, t, 0.05);
     this.musicBus.gain.setTargetAtTime(s.music, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(s.effects, t, 0.05);
-    this.rainBus.gain.setTargetAtTime(s.effects * 0.9, t, 0.05);
+    // Rain has its own, deliberately low, level (about a quarter of the effects level by default).
+    this.rainBus.gain.setTargetAtTime(s.ambience * this.rainDuck, t, 0.05);
   }
+
+  /** Duck or restore the rain (1 = menu level, about 0.45 = in-game). */
+  setRainDuck(v: number): void { this.rainDuck = v; this.applyVolumes(); }
 
   // ---- rain ---------------------------------------------------------------
   startRain(): void {
@@ -103,19 +109,28 @@ class AudioManager {
       this.rainNodes.push(src);
       return;
     }
-    // Synthesised rain: bandpassed noise (hiss) plus a low rumble.
+    // Synthesised rain: a soft, dark patter. No bright hiss (that was the harsh part): everything is
+    // low-passed, with a gentle mid body and a low rumble.
+    const soft = ctx.createBiquadFilter();
+    soft.type = 'lowpass'; soft.frequency.value = 2600; soft.Q.value = 0.3;
+    soft.connect(out);
+    this.rainNodes.push(soft);
     const layer = (type: BiquadFilterType, freq: number, q: number, gain: number) => {
       const src = ctx.createBufferSource();
       src.buffer = this.noise; src.loop = true;
-      src.playbackRate.value = 0.9 + Math.random() * 0.2;
+      src.playbackRate.value = 0.85 + Math.random() * 0.2;
       const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
       const g = ctx.createGain(); g.gain.value = gain;
-      src.connect(f); f.connect(g); g.connect(out); src.start();
+      src.connect(f); f.connect(g); g.connect(soft); src.start();
       this.rainNodes.push(src, f, g);
     };
-    layer('highpass', 1400, 0.4, 0.5);
-    layer('bandpass', 4200, 0.6, 0.35);
-    layer('lowpass', 350, 0.5, 0.45);
+    layer('bandpass', 1300, 0.5, 0.22);
+    layer('lowpass', 420, 0.5, 0.5);
+    // Slow swell so it breathes instead of droning.
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+    const lg = ctx.createGain(); lg.gain.value = 0.18;
+    lfo.connect(lg); lg.connect(out.gain); lfo.start();
+    this.rainNodes.push(lfo, lg);
   }
   stopRain(): void {
     this.rainOn = false;
@@ -211,7 +226,7 @@ class AudioManager {
       case 'paper': burst(3000, 0.18, 0.18, 'highpass', 0.3); break;
       case 'chime': tone(880, 1.2, 0.12); tone(1318, 1.0, 0.08); break;
       case 'sting': tone(110, 1.4, 0.25, 'sawtooth', -40); tone(116.5, 1.4, 0.2, 'sawtooth', -40); break;
-      case 'thunder': burst(140, 3.2, 1.2, 'lowpass', 0.4); burst(70, 4, 0.9, 'lowpass', 0.4); break;
+      case 'thunder': burst(140, 3.2, 0.45, 'lowpass', 0.4); burst(70, 4, 0.35, 'lowpass', 0.4); break;
     }
   }
 

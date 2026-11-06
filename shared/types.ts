@@ -83,6 +83,8 @@ export type MoveMessage = {
   type: 'move'
   dx: number
   dy: number
+  /** The room the client says the player is now in. The server checks it is the same or an adjacent room. */
+  roomId?: string
 }
 
 export type TalkMessage = {
@@ -166,6 +168,8 @@ export type GameOverMessage = {
   killerId: string
   timeline: TimelineEvent[]
   secrets: Record<string, string>
+  /** Diamonds granted for this win (0 if lost or already granted). The new balance follows in `diamonds_update`. */
+  reward: number
 }
 
 export type ErrorMessage = {

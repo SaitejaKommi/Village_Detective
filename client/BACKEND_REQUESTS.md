@@ -1,39 +1,30 @@
-# Requests for the backend
+# Client and backend: contract notes
 
-The client is built and tested against a mock server that follows the drafts below. Nothing outside `client/` was changed. `shared/types.ts` was **not** edited. The drafts live in `client/src/net/protocol.ts`. Each is marked DRAFT there and should move into `shared/types.ts` once we agree.
+The client speaks the backend's flat protocol from `shared/types.ts`. Both sides were checked together with `client/scripts/e2e-real.mjs` (real UI, real backend, no mock) and `backend/scripts/smoke-test.mjs`.
 
-## 1. Gaps in `shared/types.ts` (needs agreement)
+## Fixed together
 
-| # | What | Why | Client draft |
-| --- | --- | --- | --- |
-| 1 | **Message envelope.** `shared/types.ts` defines payload types but no wrapper. | The client sends and expects `{ "type": string, "payload": object }`. | `ClientMessage` / `ServerMessage` unions |
-| 2 | **The 7 Nov messages are missing:** `get_profile`, `start_case`, `hint_request` (client to server); `profile`, `case_started`, `hint`, `diamonds_update` (server to client). | The whole menu, briefing, hint and profile flow depends on them. Shapes follow the Backend Plan tables exactly. | `protocol.ts` |
-| 3 | **`join` payload.** The base table says `{sessionId?}`, the 7 Nov table says `{playerId?}`. | The client sends `{ playerId?, sessionId? }`. | |
-| 4 | **`session` should also return `playerId`.** Today only `profile` carries it. | The client persists `playerId` in localStorage and sends it on every (re)connect. | `SessionPayload` |
-| 5 | **`error` payload.** `shared` has `{ code: number, message: string }`. The 7 Nov doc uses string codes (`INSUFFICIENT_DIAMONDS`, `HINT_CAP_REACHED`, `NO_ACTIVE_CASE`). | The client expects `{ code: string \| number, message?: string }`. It shows friendly text for the known codes. | `ErrorPayload` |
-| 6 | **`inspect` has no reply message.** | Without one the evidence modal has nothing to show. Proposed: `clue_info { clueId, title, text, room? }`. | `ClueInfoPayload` |
-| 7 | **`game_over` needs the reward.** | The ending shows "diamonds earned". The client must not do balance math, so it needs `reward` and the new `diamonds` balance from the server. `secrets` should be `Record<npcId, string>` and `timeline` `string[]`. | `GameOverPayload` |
-| 8 | **`state` shape.** `shared` has `player: string, npcs: string[], clues: string[]`, which is too loose to render. | Proposed: `{ tick, clock, npcs: [{id, room, x, y}], clues: [{id, room, x, y, label}] }`. `clock` is in-game minutes since midnight. Coordinates are tile units (32px tiles, 49 x 25 grid). | `WorldState` |
+| Was | Now |
+| --- | --- |
+| `move()` never changed `player.roomId`, so `inspect` only worked in the foyer. | `MoveMessage` has an optional `roomId`. The client sends the room it walked into, and the server accepts the same or an adjacent room (from `world.json`), otherwise `INVALID_MOVE`. |
+| `game_over` had no reward. | `GameOverMessage.reward` (0 on a loss). The new balance still arrives in `diamonds_update`. |
+| `backend/node_modules` (about 1,300 files, with a non-Windows `better_sqlite3.node`), `backend/dist`, `backend/.env` and `backend/data/village.db*` were tracked in git. | Untracked with `git rm --cached` (files stay on disk, `backend/.gitignore` already lists them). Use `npm install` to get dependencies. |
+| `better-sqlite3@11` has no prebuilt binary for Node 24 and failed to build on Windows. | Bumped to `^12` (works on Node 22 to 24). |
 
-## 2. IDs the client hard-codes (please use these in the case file)
+## Still open (small)
 
-- **Rooms:** `study`, `library`, `kitchen`, `dining`, `foyer`, `garden`. The client map is a hand-coded 3 x 2 grid of these. `state.npcs[].room` and `state.clues[].room` must use them.
-- **NPCs:** `alistair` (victim, not in `state.npcs`), `evelyn`, `julian`, `harold`, `margaret`, `victor`. The client keeps portraits and sprite props per id in `client/src/data/npcs.ts`.
-- **Clue `c_body`:** the victim's body must be an inspectable clue with this id (it is drawn as the body, and the first objective is "examine the body"). Other clue ids are free.
-- If you change the layout or add rooms, tell us. The grid and door positions live in `client/src/data/mansion.ts`.
+- `clock` starts at 0, so the HUD reads 12:00 AM and advances a minute per second. Start it at an offset if you want a night-time start (for example `1370` is 10:50 PM). The case file's timeline `time` is an hour of the day.
+- `INVALID_MESSAGE` is also used for unexpected exceptions. A separate code would help debugging. The client ignores it for `move` and shows a generic message otherwise.
+- `talk` replies take as long as the LLM. The client waits 25 s for `npc_say`. A busy-style error code would end the wait sooner.
+- If real Groq or Gemini keys are ever put in `backend/.env`, keep that file out of git (it is now untracked). Rotate any key that was ever committed.
 
-## 3. Behaviour the client assumes
+## What the client assumes
 
-- **Player movement is simulated locally** (with wall collision) for responsiveness. `move { dx, dy }` is sent about 8 times a second while moving (a normalised direction, not a position). The client does not need `state.player`. If the server must own player position, we will need to share the map and add a position to `state`.
-- **Reconnect:** on every (re)connect the client sends `join { playerId }`. Please resume the in-progress case, or reply `NO_ACTIVE_CASE`.
-- **Slow LLM:** the client waits 25 s for an `npc_say` before showing "does not answer". An `error { code: "LLM_BUSY" }` (or `SERVER_BUSY`) clears the thinking state sooner.
-- **`npc_say` must carry `npcId`.** Replies are matched to the open interrogation by it.
-- **`hint`:** the client shows `text`, `diamonds` and `hintsLeft` straight from the message. `diamonds_update` after a hint is fine but not required.
-- **`hintsLeft` before the first hint:** the client does not know it until a hint is bought. Optional improvement: include `maxHints` (or `hintsLeft`) in `case_started` so the HUD can say "No hints on this difficulty" up front.
-- **Diamonds:** the client never sends or computes a balance. It only displays `profile.diamonds`, `hint.diamonds`, `diamonds_update.balance` and `game_over.diamonds`.
-- **`case_started` must not contain** `killerId`, the timeline or NPC secrets. The client never holds solution data before `game_over`.
-- **`debug`** messages are rendered in the hidden overlay (` key). Any shape works but `{ npcId, perception, memory[], thought }` from `shared` is displayed as JSON.
-
-## 4. Switching the client to the real server
-
-Set `VITE_USE_MOCK=false` and `VITE_WS_URL=ws://<host>:<port>` in `client/.env.local`, then restart `npm run dev`. See `client/README.md`.
+- One case per session. After "Return to menu" the client sends `join { playerId }` with no `sessionId`, then `start_case`.
+- After `session` the client sends `get_profile` (the server does not push `profile` on join).
+- On a dropped socket mid-case the client re-sends `join { playerId, sessionId }`.
+- `move` is sent as integer `dx`/`dy` in -1..1 with the current `roomId`, about 4 times a second while walking, and once on every room change.
+- The client never sends or computes a balance. It shows `profile.diamonds`, `hint.diamonds`, `diamonds_update.balance` and `game_over.reward`.
+- Room ids and adjacency come from `world.json` (`foyer`, `drawing_room`, `dining_room`, `study`, `library`, `kitchen`). The client map has a door for each `adjacent` edge. If `world.json` changes, update `client/src/data/mansion.ts`.
+- NPC ids `alistair` (victim, not in `state.npcs`), `evelyn`, `julian`, `harold`, `margaret`, `victor`. Portraits and sprite props are keyed by these ids.
+- `state.clues[]` has no positions or titles, so the client places clues by order within each room and makes the title from the id (`torn_ledger` becomes "Torn ledger"). Keep ids readable. NPC `position` values are ignored (only `roomId` is used).

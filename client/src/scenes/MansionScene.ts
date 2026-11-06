@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/audioManager';
-import { ROOMS, MAP_H, MAP_W, TILE, isSolid, roomAt, roomCenter, roomOrigin, ROOM_BY_ID } from '../data/mansion';
+import { BODY_SPOT, LIGHTS, ROOMS, MAP_H, MAP_W, TILE, WINDOWS, clueSpot, isSolid, roomAt, roomCenter, roomOrigin, ROOM_BY_ID, ROOM_H, ROOM_W, type LightDef } from '../data/mansion';
 import { ClueMarker } from '../entities/ClueMarker';
 import { NpcSprite } from '../entities/NpcSprite';
 import { input } from '../game/input';
 import { net } from '../net/client';
-import { bus, store } from '../state/store';
+import { reducedMotion } from '../settings';
+import { bus, clueTitle, store } from '../state/store';
 import { ensureTextures } from './textures';
 
 const SPEED = 118; // px per second
@@ -18,7 +19,6 @@ export interface Interactable { kind: 'npc' | 'clue'; id: string; label: string 
 export class MansionScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Container;
   private playerSprite!: Phaser.GameObjects.Image;
-  private light!: Phaser.GameObjects.Image;
   private npcs = new Map<string, NpcSprite>();
   private clues = new Map<string, ClueMarker>();
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'E', Phaser.Input.Keyboard.Key>;
@@ -28,6 +28,13 @@ export class MansionScene extends Phaser.Scene {
   private lastMoveSent = 0;
   private walkBob = 0;
   private unsubs: (() => void)[] = [];
+  // lighting: one darkness layer (half resolution) with soft holes cut for each light, plus warm glows
+  private dark!: Phaser.GameObjects.RenderTexture;
+  private eraser!: Phaser.GameObjects.Image;
+  private lamps: { def: LightDef; x: number; y: number; phase: number; glow: Phaser.GameObjects.Image }[] = [];
+  private playerGlow!: Phaser.GameObjects.Image;
+  private rainOnGlass: Phaser.GameObjects.TileSprite[] = [];
+  private readonly lowRes = 0.5;
 
   constructor() { super('MansionScene'); }
 
@@ -43,11 +50,13 @@ export class MansionScene extends Phaser.Scene {
       }).setAlpha(0.55).setResolution(3).setDepth(-900).setLetterSpacing(3);
     }
 
+    // The victim lies in the Study. Scenery only: the server has no clue for the body.
+    const study = ROOM_BY_ID.study;
+    this.add.image((study.col * 16 + BODY_SPOT[0]) * TILE, (study.row * 12 + BODY_SPOT[1]) * TILE, 'body').setDepth(-500);
+
     const start = roomCenter(ROOM_BY_ID.foyer);
     const px = start.x * TILE, py = (start.y + 2) * TILE;
-    this.light = this.add.image(px, py - 16, 'light').setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.32).setScale(1.35).setDepth(5000);
-    // Darken the whole mansion; the light pool around the detective brings the room back.
-    this.add.rectangle(0, 0, MAP_W * TILE, MAP_H * TILE, 0x04060a, 0.32).setOrigin(0).setDepth(4000);
+    this.buildLighting();
     const shadow = this.add.ellipse(0, 1, 20, 8, 0x000000, 0.45);
     this.playerSprite = this.add.image(0, -20, 'player');
     this.player = this.add.container(px, py, [shadow, this.playerSprite]);
@@ -89,7 +98,48 @@ export class MansionScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.cleanup());
   }
 
+  /** Darkness with soft light pools. Six lamps and the player, plus a handful of window streaks: cheap enough for a phone. */
+  private buildLighting(): void {
+    const w = MAP_W * TILE, h = MAP_H * TILE, r = this.lowRes;
+    this.dark = this.add.renderTexture(0, 0, Math.ceil(w * r), Math.ceil(h * r)).setOrigin(0).setScale(1 / r).setDepth(4000);
+    this.eraser = this.make.image({ key: 'light', add: false });
+    this.lamps = LIGHTS.map((def, i) => {
+      const room = ROOM_BY_ID[def.room];
+      const x = (room.col * ROOM_W + def.lx) * TILE, y = (room.row * ROOM_H + def.ly) * TILE;
+      const glow = this.add.image(x, y, 'light').setBlendMode(Phaser.BlendModes.ADD).setTint(def.color).setAlpha(0.2).setDepth(4100);
+      return { def, x, y, phase: i * 1.9, glow };
+    });
+    this.playerGlow = this.add.image(0, 0, 'light').setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd9a0).setAlpha(0.14).setDepth(4100);
+    // Rain running down the window glass
+    for (const win of WINDOWS) {
+      const t = this.add.tileSprite(win.x * TILE + 2, win.y * TILE + 5, TILE * 2 - 4, TILE - 10, 'rainstreak').setOrigin(0).setAlpha(0.75).setDepth(-400);
+      this.rainOnGlass.push(t);
+    }
+  }
+
+  private updateLighting(time: number, dt: number): void {
+    const r = this.lowRes, calm = reducedMotion();
+    const rt = this.dark;
+    rt.clear();
+    rt.fill(0x03040a, 0.8);
+    for (const l of this.lamps) {
+      // gentle candle / fire flicker: tiny amplitude, slow, and off for reduced motion
+      const f = calm ? 1 : 1 + l.def.flicker * (0.6 * Math.sin(time * 0.008 + l.phase) + 0.4 * Math.sin(time * 0.019 + l.phase * 2.3));
+      this.eraser.setScale(((l.def.radius * 2) / 512) * f * r).setAlpha(1);
+      rt.erase(this.eraser, l.x * r, l.y * r);
+      l.glow.setScale(((l.def.radius * 1.7) / 512) * f);
+    }
+    // soft light around the detective
+    const px = this.player.x, py = this.player.y - 14;
+    this.eraser.setScale(((150 * 2) / 512) * r).setAlpha(1);
+    rt.erase(this.eraser, px * r, py * r);
+    this.playerGlow.setPosition(px, py).setScale((150 * 1.5) / 512);
+    if (!calm) for (const t of this.rainOnGlass) { t.tilePositionY -= dt * 70; t.tilePositionX += dt * 14; }
+  }
+
   private cleanup(): void {
+    this.lamps = [];
+    this.rainOnGlass = [];
     this.unsubs.forEach((u) => u());
     this.unsubs = [];
     this.scale.off('resize', this.applyZoom, this);
@@ -115,14 +165,20 @@ export class MansionScene extends Phaser.Scene {
     if (!w) return;
     for (const n of w.npcs) {
       let s = this.npcs.get(n.id);
-      if (!s) { s = new NpcSprite(this, n.id, n.x, n.y); this.npcs.set(n.id, s); }
-      s.setTarget(n.x, n.y);
+      if (!s) { s = new NpcSprite(this, n.id, n.roomId); this.npcs.set(n.id, s); }
+      s.setRoom(n.roomId);
     }
-    const found = new Set(store.state.foundClues.map((c) => c.id));
-    for (const c of w.clues) {
+    // The server sends clues by room only. Give each a spot in its room, by order within the room.
+    const perRoom: Record<string, number> = {};
+    for (const c of [...w.clues].sort((a, b) => a.id.localeCompare(b.id))) {
       let m = this.clues.get(c.id);
-      if (!m) { m = new ClueMarker(this, c.id, c.x, c.y, c.label); this.clues.set(c.id, m); }
-      m.setFound(found.has(c.id));
+      if (!m) {
+        const i = (perRoom[c.roomId] = (perRoom[c.roomId] ?? -1) + 1);
+        const spot = clueSpot(c.roomId, i);
+        m = new ClueMarker(this, c.id, spot.x, spot.y);
+        this.clues.set(c.id, m);
+      }
+      m.setFound(c.discovered, clueTitle(c.id));
     }
   }
 
@@ -155,23 +211,30 @@ export class MansionScene extends Phaser.Scene {
       this.walkBob += dt * 14;
       this.playerSprite.y = -20 + Math.sin(this.walkBob) * 1.4;
       if (time - this.stepAt > 340) { this.stepAt = time; audio.sfx('step'); }
-      if (time - this.lastMoveSent > 120) {
+      if (time - this.lastMoveSent > 250) {
         this.lastMoveSent = time;
-        net.send({ type: 'move', payload: { dx: +vx.toFixed(2), dy: +vy.toFixed(2) } });
+        // The server's schema only accepts integer directions in -1..1.
+        net.send({ type: 'move', dx: Math.sign(Math.round(vx)), dy: Math.sign(Math.round(vy)), roomId: this.room });
       }
     } else this.playerSprite.y = -20;
     this.player.setDepth(this.player.y);
-    this.light.setPosition(this.player.x, this.player.y - 16);
 
     for (const n of this.npcs.values()) n.tick(dt);
 
+    this.updateLighting(time, dt);
     this.updateRoom(false);
     this.updateNearby();
   }
 
   private updateRoom(force: boolean): void {
     const r = roomAt(this.player.x / TILE, this.player.y / TILE);
-    if (force || r !== this.room) { this.room = r; bus.emit('room', r); }
+    if (force || r !== this.room) {
+      const changed = r !== this.room;
+      this.room = r;
+      bus.emit('room', r);
+      // Tell the server straight away, so `inspect` works in the new room (the server tracks the player's room).
+      if (changed && !force) net.send({ type: 'move', dx: 0, dy: 0, roomId: r });
+    }
   }
 
   /** Nearest NPC or clue within range. Emits `nearby` only on change. */

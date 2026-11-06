@@ -25,17 +25,17 @@ export const NPCS: Record<NpcId, NpcDef> = {
   evelyn: {
     id: 'evelyn', name: 'Evelyn Blackwood', short: 'Evelyn', role: 'His wife',
     appearance: 'Mid 40s. Black evening gown, pearl choker, long gloves.',
-    color: 0x7a2236, prop: 'pearls', home: 'library',
+    color: 0x7a2236, prop: 'pearls', home: 'drawing_room',
   },
   julian: {
     id: 'julian', name: 'Julian Blackwood', short: 'Julian', role: 'Their son',
     appearance: 'Late 20s. Rumpled dark blazer, loosened tie, tired eyes.',
-    color: 0x3a5f8a, prop: 'tie', home: 'garden',
+    color: 0x3a5f8a, prop: 'tie', home: 'library',
   },
   harold: {
     id: 'harold', name: 'Harold Finch', short: 'Harold', role: 'The butler',
     appearance: '60s. Immaculate tailcoat, white gloves, straight posture.',
-    color: 0x3a3a40, prop: 'gloves', home: 'dining',
+    color: 0x3a3a40, prop: 'gloves', home: 'dining_room',
   },
   margaret: {
     id: 'margaret', name: 'Margaret Doyle', short: 'Margaret', role: 'The housekeeper',

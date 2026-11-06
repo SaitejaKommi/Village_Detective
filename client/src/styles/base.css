@@ -427,3 +427,35 @@ button, input, textarea { font: inherit; color: inherit; }
   .s-card .portrait { aspect-ratio: 4 / 5; }
 }
 @media (max-width: 760px) { .profile-detective { max-width: 200px; margin-inline: auto; } }
+
+
+/* ---------- Interrogation scene: side-lit portrait, thinking flicker, letterbox ---------- */
+.interro-portrait-wrap .key-light { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 88% 38%, rgba(255, 196, 120, 0.42), rgba(255, 160, 70, 0.12) 38%, transparent 62%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.35) 38%, transparent 70%);
+  mix-blend-mode: normal; }
+.interro .portrait::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.7), transparent 40%, transparent 62%, rgba(217, 189, 127, 0.32)); }
+.interro-portrait-wrap .portrait { transform-origin: 70% 40%; animation: breathe 9s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.018); } }
+/* While the suspect "thinks" the key light slowly gutters (about 0.4 Hz, never a strobe) */
+.interro-portrait-wrap.thinking .key-light { animation: gutter 2.6s ease-in-out infinite; }
+.interro-portrait-wrap.thinking .portrait { animation: breathe 9s ease-in-out infinite; filter: brightness(0.8); }
+@keyframes gutter { 0%, 100% { opacity: 1; } 35% { opacity: 0.45; } 55% { opacity: 0.8; } 75% { opacity: 0.55; } }
+
+#app::before, #app::after { content: ''; position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 8; pointer-events: none; transition: height 700ms var(--ease); }
+#app::before { top: 0; }
+#app::after { bottom: 0; }
+@media (min-width: 721px) and (min-height: 501px) {
+  #app.cinema::before, #app.cinema::after { height: 9dvh; }
+}
+
+/* ---------- Finishing layer: subtle film grain + light vignette over the whole game ---------- */
+#fx { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+#fx .grain { position: absolute; inset: -80px; background-size: 160px 160px; opacity: 0.05; animation: grain 0.9s steps(6) infinite; }
+@keyframes grain {
+  0% { transform: translate(0, 0); } 17% { transform: translate(-37px, 22px); } 33% { transform: translate(28px, -41px); }
+  50% { transform: translate(-19px, -33px); } 67% { transform: translate(44px, 15px); } 83% { transform: translate(-26px, 38px); } 100% { transform: translate(0, 0); }
+}
+#fx .vig { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.28) 100%); }
+@media (prefers-reduced-motion: reduce) { #fx .grain { animation: none; } }

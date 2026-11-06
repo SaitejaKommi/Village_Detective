@@ -11,6 +11,7 @@ const MoveSchema = z.object({
   type: z.literal('move'),
   dx: z.number().int().min(-1).max(1),
   dy: z.number().int().min(-1).max(1),
+  roomId: z.string().min(1).optional(),
 })
 
 const TalkSchema = z.object({

@@ -121,7 +121,7 @@ export function profileScreen(onBack: () => void): HTMLElement {
 // ---- 5. Settings -----------------------------------------------------------------
 export function settingsScreen(onBack: () => void): HTMLElement {
   const s = getSettings();
-  const slider = (id: 'music' | 'effects', label: string) => {
+  const slider = (id: 'music' | 'effects' | 'ambience', label: string) => {
     const val = h('span', { class: 'val' }, `${Math.round(s[id] * 100)}%`);
     const input = h('input', { type: 'range', id: `set-${id}`, min: '0', max: '100', step: '1', value: String(Math.round(s[id] * 100)), 'aria-label': label });
     input.addEventListener('input', () => { updateSettings({ [id]: Number(input.value) / 100 }); val.textContent = `${input.value}%`; });
@@ -137,7 +137,7 @@ export function settingsScreen(onBack: () => void): HTMLElement {
   const el = h('div', null,
     h('div', { class: 'screen-head' }, backBtn(onBack), h('h2', null, 'Settings')),
     h('div', { class: 'screen-body' }, h('div', { class: 'settings-list' },
-      slider('music', 'Music volume'), slider('effects', 'Effects volume'),
+      slider('music', 'Music volume'), slider('effects', 'Effects volume'), slider('ambience', 'Rain and ambience'),
       toggle('mute', 'Mute all'), toggle('skipIntro', 'Skip intro'),
       h('p', { class: 'muted' }, 'Saved on this device.'),
     )),
@@ -160,7 +160,7 @@ export function briefingScreen(onBegin: () => void, onBack: () => void): HTMLEle
   return h('div', null,
     h('div', { class: 'screen-head' }, backBtn(onBack), h('div', { class: 'eyebrow', style: 'flex:1' }, `Case file${diff ? ' · ' + diff.label : ''}`)),
     h('div', { class: 'screen-body briefing' },
-      h('h2', { class: 'case-title' }, c.title),
+      h('h2', { class: 'case-title' }, c.briefing.title),
       h('p', { class: 'scene', style: 'margin:12px 0' }, c.briefing.scene),
       h('div', { class: 'victim' },
         portrait(victimDef.id),
