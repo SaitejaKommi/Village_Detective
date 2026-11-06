@@ -1,0 +1,11 @@
+$kind: collection
+name: WebSocket Tests
+order: 2000
+description: |-
+  Standalone WebSocket checks for the Village of Liars backend.
+
+  Every request opens its own connection and replays the prerequisites, so each
+  file can be sent on its own. Connect, then send every saved message in order
+  (Postman keeps the connection open between saved messages).
+
+  For the single-connection walkthrough use **Game Session** instead.

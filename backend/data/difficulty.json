@@ -1,0 +1,32 @@
+[
+  {
+    "id": "easy",
+    "label": "Rookie Detective",
+    "npcCooperation": 0.8,
+    "lieTendency": 0.3,
+    "redHerrings": 1,
+    "clueVisibility": "high",
+    "maxHints": 4,
+    "rewardDiamonds": 1
+  },
+  {
+    "id": "medium",
+    "label": "Professional Detective",
+    "npcCooperation": 0.5,
+    "lieTendency": 0.6,
+    "redHerrings": 2,
+    "clueVisibility": "medium",
+    "maxHints": 3,
+    "rewardDiamonds": 2
+  },
+  {
+    "id": "hard",
+    "label": "Master Detective",
+    "npcCooperation": 0.2,
+    "lieTendency": 0.85,
+    "redHerrings": 3,
+    "clueVisibility": "low",
+    "maxHints": 1,
+    "rewardDiamonds": 3
+  }
+]

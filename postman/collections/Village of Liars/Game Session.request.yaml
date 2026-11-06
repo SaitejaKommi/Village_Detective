@@ -1,0 +1,17 @@
+$kind: websocket-request
+name: Game Session
+description: |-
+  Connect once, then send the saved messages in order.
+
+  1. **Join** creates the player and session.
+  2. **Get profile** should return 3 diamonds.
+  3. **Start case** spawns the player in the foyer with 5 suspects.
+  4. **Inspect** reveals `muddy_footprints` and teaches nearby NPCs.
+  5. **Talk** returns an `npc_say` frame.
+  6. **Hint** costs 1 diamond and returns a direction hint.
+  7. Send **Hint again** within one second to see `RATE_LIMITED`.
+  8. **Invalid move** returns `INVALID_MESSAGE`.
+  9. **Accuse Victor** ends the case with `game_over` and the reward frame.
+url: '{{wsUrl}}'
+order: 1000
+messages: './.resources/Game Session.resources/messages'

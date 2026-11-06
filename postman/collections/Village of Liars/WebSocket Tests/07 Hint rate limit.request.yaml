@@ -1,0 +1,8 @@
+$kind: websocket-request
+name: '07 Hint rate limit'
+description: |-
+  Expected: `hint` for the first request, then `error` with code
+  `RATE_LIMITED` for the second request sent within one second.
+url: '{{wsUrl}}'
+order: 7000
+messages: './.resources/07 Hint rate limit.resources/messages'

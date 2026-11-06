@@ -1,0 +1,9 @@
+$kind: websocket-request
+name: '09 Accuse Victor'
+description: |-
+  Expected: `session`, `case_started`, `state`, then `game_over` with
+  `won: true` and `killerId: victor`, followed by `diamonds_update` with
+  reason `reward`.
+url: '{{wsUrl}}'
+order: 9000
+messages: './.resources/09 Accuse Victor.resources/messages'

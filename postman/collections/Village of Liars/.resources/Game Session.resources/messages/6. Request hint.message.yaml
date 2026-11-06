@@ -1,0 +1,6 @@
+$kind: websocket-message
+name: '6. Request hint'
+order: 6000
+contentType: json
+content: |-
+  {"type":"hint_request"}
