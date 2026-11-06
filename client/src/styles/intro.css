@@ -1,0 +1,28 @@
+/* Cinematic intro */
+.intro { background: #000; cursor: pointer; padding: 0; overflow: hidden; animation: none; }
+.intro.fade-out { opacity: 0; transition: opacity 1.2s var(--ease); }
+.intro-mansion { opacity: 0; transition: opacity 1.4s var(--ease), filter 3s var(--ease); filter: brightness(0.9); }
+.intro-mansion.show { opacity: 0.85; }
+.intro-mansion.dim { opacity: 0.32; filter: brightness(0.6) blur(1px); }
+.intro-detective {
+  position: absolute; left: 50%; bottom: 0; height: min(92dvh, 900px); aspect-ratio: 600 / 900; transform: translateX(-50%) scale(1);
+  opacity: 0; transition: opacity 3s var(--ease);
+}
+.intro-detective svg { width: 100%; height: 100%; display: block; }
+.intro-detective.show { opacity: 1; animation: push 12s linear forwards; }
+@keyframes push { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
+.intro-title { position: absolute; left: 0; right: 0; top: 7%; text-align: center; opacity: 0; transition: opacity 3s var(--ease); padding: 0 16px; }
+.intro-title.show { opacity: 1; }
+.intro-title h1 {
+  font-size: clamp(2.6rem, 11vw, 7rem); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; line-height: 1; margin: 10px 0;
+  background: linear-gradient(100deg, var(--gold) 0%, var(--gold) 40%, #fff3c9 50%, var(--gold) 60%, var(--gold) 100%);
+  background-size: 250% 100%; background-position: 100% 0; -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 30px rgba(184, 152, 90, 0.35));
+}
+.intro-title.sweep h1 { animation: sweep 3.2s var(--ease) forwards; }
+@keyframes sweep { to { background-position: 0% 0; } }
+.intro-title .eyebrow { letter-spacing: 0.5em; }
+.intro-title p { font-family: var(--font-serif); font-style: italic; font-size: clamp(1.1rem, 3vw, 1.6rem); color: var(--ivory); opacity: 0; transition: opacity 2.4s 1.8s var(--ease); margin: 0; }
+.intro-title.sweep p { opacity: 0.85; }
+.skip-hint { position: absolute; left: calc(var(--sal) + 16px); bottom: calc(var(--sab) + 14px); font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); opacity: 0; transition: opacity 1.5s; }
+.skip-hint.show { opacity: 0.8; }

@@ -1,0 +1,56 @@
+/* Design tokens. The single source for colour, type, spacing and motion. */
+:root {
+  /* Surfaces */
+  --bg: #0b0b0c;
+  --bg-2: #141414;
+  --surface: #1c1c1e;
+  --surface-2: #262628;
+  --line: rgba(184, 152, 90, 0.28);
+  --line-strong: rgba(184, 152, 90, 0.6);
+
+  /* Accent and text */
+  --gold: #b8985a;
+  --gold-bright: #d9bd7f;
+  --gold-dim: #7d6a43;
+  --ivory: #e8e2d0;
+  --muted: #9a968b; /* AA on --bg and --surface */
+  --danger: #7a1f1f;
+  --danger-bright: #c0453f;
+  --ok: #7f9a6a;
+  --teal: #1f5a5e;
+
+  /* Type */
+  --font-serif: 'Cormorant Garamond', 'Playfair Display', Cinzel, 'Times New Roman', Georgia, serif;
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Spacing and shape */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --radius: 4px;
+  --tap: 44px;
+
+  /* Safe areas */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+
+  /* Motion: slow and smooth, never bouncy */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --t-fast: 180ms;
+  --t-med: 420ms;
+  --t-slow: 900ms;
+
+  /* Layers */
+  --z-game: 0;
+  --z-atmos: 5;
+  --z-hud: 10;
+  --z-panel: 20;
+  --z-modal: 30;
+  --z-top: 40;
+}
