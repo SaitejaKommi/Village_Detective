@@ -329,6 +329,14 @@ export class MockTransport implements Transport {
     }, 800);
   }
 
+  /** DEV ONLY: set the pretend balance (to test the empty-diamonds state). */
+  devSetDiamonds(n: number): void {
+    if (!this.playerId) return;
+    const row = this.row();
+    row.diamonds = Math.max(0, n);
+    this.save(row);
+  }
+
   /** DEV ONLY: accuse correctly or incorrectly without playing. */
   devAccuse(won: boolean): void {
     if (!this.active) return;

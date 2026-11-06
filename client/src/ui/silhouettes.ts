@@ -28,8 +28,8 @@ const PARTS: Record<string, Parts> = {
     details: `
       <path d="M128 280 L150 336 L172 280" stroke="#7a1f1f" stroke-width="4" fill="none"/>
       ${Array.from({ length: 9 }, (_, i) => `<circle cx="${124 + i * 6.5}" cy="${262 + Math.sin((i / 8) * Math.PI) * 9}" r="3.6" fill="#efe9d8"/>`).join('')}
-      <circle cx="104" cy="214" r="3" fill="#efe9d8"/><circle cx="196" cy="214" r="3" fill="#efe9d8"/>
-      <ellipse cx="150" cy="226" rx="9" ry="3" fill="#7a1f1f"/>
+      <circle cx="99" cy="234" r="3" fill="#efe9d8"/><circle cx="201" cy="234" r="3" fill="#efe9d8"/>
+      <ellipse cx="150" cy="229" rx="11" ry="3.2" fill="#7a1f1f"/>
       <ellipse cx="208" cy="304" rx="13" ry="26" fill="#18181a" stroke="#e8e2d0" stroke-opacity=".5"/>
       <path d="M200 280 q8 12 16 0" stroke="#e8e2d0" stroke-opacity=".4" fill="none"/>`,
   },
@@ -86,13 +86,13 @@ export function silhouetteSVG(id: string): string {
   const p = PARTS[id] ?? PARTS.harold;
   const n = ++uid;
   const body = id === 'detective' ? '' : `<path d="${SHOULDERS}"/><path d="${NECK}"/>`;
-  return `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Silhouette portrait" xmlns="http://www.w3.org/2000/svg">
+  return `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMax meet" style="overflow:visible" role="img" aria-label="Silhouette portrait" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="bg${n}" cx=".35" cy=".28" r=".95"><stop offset="0" stop-color="#2b3236"/><stop offset=".6" stop-color="#121315"/><stop offset="1" stop-color="#08080a"/></radialGradient>
     <linearGradient id="shaft${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f8a90" stop-opacity=".22"/><stop offset="1" stop-color="#2f8a90" stop-opacity="0"/></linearGradient>
     <g id="fig${n}">${body}${p.figure}</g>
   </defs>
-  <rect width="300" height="400" fill="url(#bg${n})"/>
+  <rect x="-1200" y="-800" width="2700" height="1600" fill="url(#bg${n})"/>
   <path d="M0 0 L150 0 L70 400 L0 400Z" fill="url(#shaft${n})"/>
   <use href="#fig${n}" fill="${GOLD}"/>
   <use href="#fig${n}" fill="${INK}" transform="translate(-3.5 0)"/>

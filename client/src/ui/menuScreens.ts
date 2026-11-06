@@ -170,7 +170,7 @@ export function briefingScreen(onBegin: () => void, onBack: () => void): HTMLEle
       h('p', { style: 'max-width:70ch' }, c.briefing.summary),
       h('div', { class: 'eyebrow', style: 'margin-top:20px' }, 'Persons of interest'),
       h('div', { class: 'suspect-row' }, ...chips),
-      begin,
+      h('div', { class: 'begin-bar' }, begin),
     ),
   );
 }

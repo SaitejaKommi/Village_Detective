@@ -17,8 +17,8 @@ html, body {
 }
 
 #app { position: fixed; inset: 0; overflow: hidden; background: var(--bg); }
-#game { position: absolute; inset: 0; z-index: var(--z-game); display: none; touch-action: none; }
-#game.on { display: block; }
+#game { position: absolute; inset: 0; z-index: var(--z-game); visibility: hidden; touch-action: none; }
+#game.on { visibility: visible; }
 #game canvas { display: block; touch-action: none; }
 #atmos { position: absolute; inset: 0; z-index: var(--z-atmos); pointer-events: none; --rain-alpha: 1; }
 #ui { position: absolute; inset: 0; z-index: var(--z-hud); pointer-events: none; }
@@ -111,11 +111,11 @@ button, input, textarea { font: inherit; color: inherit; }
 .game-title { font-size: clamp(2.6rem, 9vw, 5.4rem); line-height: 0.95; font-weight: 600; color: var(--gold-bright); text-transform: uppercase; letter-spacing: 0.06em; text-shadow: 0 0 40px rgba(184, 152, 90, 0.25); }
 .game-title span { display: block; font-size: 0.42em; letter-spacing: 0.5em; color: var(--ivory); opacity: 0.85; margin-bottom: 0.4em; }
 .tagline { font-family: var(--font-serif); font-style: italic; color: var(--muted); font-size: 1.15rem; }
-.menu-list { display: flex; flex-direction: column; gap: 6px; width: min(100%, 340px); }
+.menu-list { display: flex; flex-direction: column; gap: 6px; width: min(100%, 440px); }
 .menu-item {
   text-align: left; background: none; border: 0; border-bottom: 1px solid rgba(184, 152, 90, 0.18);
   padding: 14px 4px; min-height: var(--tap); cursor: pointer;
-  font-family: var(--font-serif); font-size: 1.5rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ivory);
+  font-family: var(--font-serif); font-size: clamp(1.15rem, 4.6vw, 1.5rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ivory); white-space: nowrap;
   transition: color var(--t-fast), padding-left var(--t-med) var(--ease), text-shadow var(--t-fast), border-color var(--t-fast);
 }
 .menu-item:hover, .menu-item:focus-visible { color: var(--gold-bright); padding-left: 14px; text-shadow: 0 0 18px rgba(184, 152, 90, 0.5); border-color: var(--gold); }
@@ -384,3 +384,24 @@ button, input, textarea { font: inherit; color: inherit; }
   .timeline li, .secret { opacity: 1; }
   #atmos .fog { animation: none; }
 }
+
+/* Quick-question chips (interrogation) */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 var(--s-4) var(--s-3); }
+.chip { min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); background: rgba(184, 152, 90, 0.06); color: var(--ivory); border-radius: 18px; font-size: 0.82rem; cursor: pointer; text-align: left; }
+.chip:hover { border-color: var(--gold); background: rgba(184, 152, 90, 0.14); }
+@media (orientation: landscape) and (max-height: 500px) { .chips { display: none !important; } }
+
+/* HUD on narrow screens: buttons stack in a column on the right so the objective keeps room */
+@media (max-width: 560px) {
+  .hud-right { flex-direction: column; align-items: flex-end; flex-wrap: nowrap; gap: 6px; }
+  .hud-left { max-width: calc(100% - 64px); }
+  .hud-objective { max-width: 100%; }
+  .hud-note { top: auto; bottom: calc(var(--sab) + 190px); left: calc(var(--sal) + 12px); right: calc(var(--sar) + 12px); max-width: none; text-align: left; }
+}
+#hud-root { transition: opacity var(--t-med); }
+#hud-root.under { opacity: 0.2; pointer-events: none !important; }
+#hud-root.under * { pointer-events: none !important; }
+
+/* Briefing: keep Begin reachable on short screens */
+.begin-bar { position: sticky; bottom: calc(-1 * var(--s-5)); padding: var(--s-4) 0 var(--s-2); background: linear-gradient(180deg, transparent, rgba(8, 8, 9, 0.95) 40%); }
+@media (max-height: 820px) { .suspect-chip .portrait { aspect-ratio: 4 / 3; } .victim .portrait { width: 64px; height: 76px; } }
