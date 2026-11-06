@@ -347,9 +347,9 @@ export function endingScreen(onMenu: () => void): HTMLElement {
       h('div', { class: `secret${id === g.killerId ? ' killer' : ''}`, style: `animation-delay:${secretsAt + i * (step * 0.6)}s` },
         portrait(id), h('div', null, h('b', null, npcName(id) + (id === g.killerId ? ' (the killer)' : '')), h('div', { class: 'muted' }, text)))));
 
-  // The reward arrives in the `diamonds_update` that follows `game_over`. We show the server's balance, never our own sum.
+  // `reward` comes from the server, and the new balance from the `diamonds_update` that follows. We never add anything up.
   const balance = h('div', { class: 'muted' });
-  const reward = won ? h('div', { class: 'reward-box' }, icon('diamond'), 'Reward earned') : null;
+  const reward = won ? h('div', { class: 'reward-box' }, icon('diamond'), g.reward > 0 ? `+${g.reward}` : 'Reward earned') : null;
   bindStore(balance, (s) => { balance.textContent = s.diamonds === null ? '' : `Balance: ${s.diamonds} diamonds`; });
 
   return h('div', { class: 'ending' },

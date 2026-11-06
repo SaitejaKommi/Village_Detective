@@ -51,7 +51,7 @@ VITE_USE_MOCK=false
 VITE_WS_URL=ws://localhost:8080
 ```
 
-Restart `npm run dev`. The game code is identical in both modes. Both implement the `Transport` interface (`src/net/transport.ts`). The real one (`src/net/wsTransport.ts`) reconnects with backoff and re-joins on reconnect. The wire protocol is the backend's own, flat JSON from `shared/types.ts` (for example `{ "type": "talk", "npcId": "julian", "text": "..." }`). `BACKEND_REQUESTS.md` lists the gaps that remain, the main one being that `inspect` only works in the foyer until the server tracks the player's room.
+Restart `npm run dev`. The game code is identical in both modes. Both implement the `Transport` interface (`src/net/transport.ts`). The real one (`src/net/wsTransport.ts`) reconnects with backoff and re-joins on reconnect. The wire protocol is the backend's own, flat JSON from `shared/types.ts` (for example `{ "type": "talk", "npcId": "julian", "text": "..." }`). `BACKEND_REQUESTS.md` lists what was fixed together and the small gaps that remain.
 
 Start the backend with `cd backend; npm install; npm run dev` (it listens on `ws://localhost:8080`; copy `backend/.env.example` to `.env` and add Groq or Gemini keys, or it falls back to scripted lines).
 
@@ -80,6 +80,12 @@ With the dev server running (all three use `playwright-core` with your installed
 node scripts/e2e.mjs            # full loop on the mock: menu, case, move + walls, hints 3 to 2 to 0, accuse, ending, reload persistence
 node scripts/e2e-interact.mjs   # real interaction path: proximity prompt, E key, prompt button, tapping sprites, all five suspects, second case after restart
 node scripts/shot.mjs "?screen=game" 390x844 out.png wait:2500   # screenshot at any size (set TOUCH=1 for touch emulation)
+```
+
+Real UI against the real backend (needs a fresh DB; see the header of `scripts/e2e-real.mjs`):
+
+```powershell
+node scripts/e2e-real.mjs
 ```
 
 Real-server path with nothing listening (banner states, Retry, start-case timeout):
@@ -135,7 +141,7 @@ Keep licences and attributions in a file next to the audio if any asset requires
 
 ## Known limits
 
-- Player movement is simulated on the client (with wall collision). The server only receives integer direction input, and does not track the player's room yet (see `BACKEND_REQUESTS.md`).
+- Player movement is simulated on the client (with wall collision). The server receives integer direction input plus the room the player is in, which it validates against `world.json`.
 - Rain loudness has not been judged by ear. It now defaults to a low level with its own "Rain and ambience" slider in Settings.
 - The mock mirrors the real server's message shapes and rules, with canned keyword-matched replies, seven clues and a random killer each run. It is for UI development, not for judging game design.
 - Silhouette portraits are the permanent fallback. Real art needs sourcing (see above).

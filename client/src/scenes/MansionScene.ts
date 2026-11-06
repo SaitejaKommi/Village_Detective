@@ -214,7 +214,7 @@ export class MansionScene extends Phaser.Scene {
       if (time - this.lastMoveSent > 250) {
         this.lastMoveSent = time;
         // The server's schema only accepts integer directions in -1..1.
-        net.send({ type: 'move', dx: Math.sign(Math.round(vx)), dy: Math.sign(Math.round(vy)) });
+        net.send({ type: 'move', dx: Math.sign(Math.round(vx)), dy: Math.sign(Math.round(vy)), roomId: this.room });
       }
     } else this.playerSprite.y = -20;
     this.player.setDepth(this.player.y);
@@ -228,7 +228,13 @@ export class MansionScene extends Phaser.Scene {
 
   private updateRoom(force: boolean): void {
     const r = roomAt(this.player.x / TILE, this.player.y / TILE);
-    if (force || r !== this.room) { this.room = r; bus.emit('room', r); }
+    if (force || r !== this.room) {
+      const changed = r !== this.room;
+      this.room = r;
+      bus.emit('room', r);
+      // Tell the server straight away, so `inspect` works in the new room (the server tracks the player's room).
+      if (changed && !force) net.send({ type: 'move', dx: 0, dy: 0, roomId: r });
+    }
   }
 
   /** Nearest NPC or clue within range. Emits `nearby` only on change. */

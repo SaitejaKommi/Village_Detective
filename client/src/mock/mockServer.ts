@@ -68,6 +68,7 @@ export class MockTransport implements Transport {
   private difficulty: Difficulty = 'easy';
   private killer: NpcId = 'evelyn';
   private hintsUsed = 0;
+  private playerRoom = 'foyer';
   private lastHintAt = 0;
   private lastTalkAt = 0;
   private npcs: MockNpc[] = [];
@@ -110,7 +111,7 @@ export class MockTransport implements Transport {
       case 'join': return this.onJoin(msg.playerId, msg.sessionId);
       case 'get_profile': return this.sendProfile();
       case 'start_case': return this.onStartCase(msg.difficulty);
-      case 'move': return this.onMove(msg.dx, msg.dy);
+      case 'move': return this.onMove(msg.dx, msg.dy, msg.roomId);
       case 'talk': return this.onTalk(msg.npcId, msg.text);
       case 'inspect': return this.onInspect(msg.clueId);
       case 'hint_request': return this.onHint();
@@ -162,6 +163,7 @@ export class MockTransport implements Transport {
     this.difficulty = difficulty;
     this.killer = pick(SUSPECT_IDS);
     this.hintsUsed = 0;
+    this.playerRoom = 'foyer';
     this.started = true;
     this.solved = false;
     this.tick = 0;
@@ -211,7 +213,7 @@ export class MockTransport implements Transport {
       type: 'state',
       tick: this.tick,
       clock: this.clock,
-      player: { id: this.playerId, roomId: 'foyer', position: { x: 0, y: 0 } },
+      player: { id: this.playerId, roomId: this.playerRoom, position: { x: 0, y: 0 } },
       // Like the real server: NPCs carry a roomId and meaningless small-integer positions.
       npcs: this.npcs.map((n, i) => ({ id: n.id, name: NPCS[n.id].name, roomId: n.roomId, position: { x: 1 + (i % 4), y: 1 + (i % 3) } })),
       clues: this.clues.map((c) => ({ id: c.id, roomId: c.roomId, discovered: c.discovered, text: c.discovered ? c.text : undefined })),
@@ -233,11 +235,16 @@ export class MockTransport implements Transport {
     if (this.online) this.msgCb(this.stateMsg());
   }
 
-  private onMove(dx: number, dy: number): void {
+  private onMove(dx: number, dy: number, roomId?: string): void {
     // The real server's schema only accepts integers in -1..1.
     const okv = (v: unknown) => Number.isInteger(v) && (v as number) >= -1 && (v as number) <= 1;
     if (!okv(dx) || !okv(dy)) return this.fail('INVALID_MESSAGE', 'Unsupported or malformed message');
     if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
+    if (roomId && roomId !== this.playerRoom) {
+      // The real server accepts the same or an adjacent room. The mock accepts any known room.
+      if (!ROOMS.some((r) => r.id === roomId)) return this.fail('INVALID_MOVE', 'You cannot go straight there');
+      this.playerRoom = roomId;
+    }
   }
 
   private onTalk(npcId: string, textRaw: string): void {
@@ -264,6 +271,7 @@ export class MockTransport implements Transport {
     if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
     const c = this.clues.find((x) => x.id === clueId);
     if (!c) return this.fail('CLUE_NOT_FOUND', 'No such clue');
+    if (c.roomId !== this.playerRoom) return this.fail('CLUE_NOT_FOUND', 'That clue is not in this room');
     c.discovered = true;
     // The real server replies with an event carrying the text, then a fresh state with `discovered: true`.
     this.reply({ type: 'event', kind: 'clue', text: c.text }, 200);
@@ -310,8 +318,8 @@ export class MockTransport implements Transport {
     const timeline: TimelineEvent[] = [...TRUE_TIMELINE_HEAD, killerEvent, ...TRUE_TIMELINE_TAIL];
     const secrets: Record<string, string> = {};
     for (const id of SUSPECT_IDS) secrets[id] = SCRIPTS[id].secret;
-    // Like the real server: game_over has no reward field. The new balance follows in diamonds_update.
-    this.reply({ type: 'game_over', won, killerId: this.killer, timeline, secrets }, 800);
+    // Like the real server: game_over carries the reward. The new balance follows in diamonds_update.
+    this.reply({ type: 'game_over', won, killerId: this.killer, timeline, secrets, reward }, 800);
     if (won) this.reply({ type: 'diamonds_update', balance: row.diamonds, reason: 'reward' }, 850);
   }
 
