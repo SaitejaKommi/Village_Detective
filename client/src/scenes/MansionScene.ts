@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/audioManager';
-import { BODY_SPOT, ROOMS, MAP_H, MAP_W, TILE, clueSpot, isSolid, roomAt, roomCenter, roomOrigin, ROOM_BY_ID } from '../data/mansion';
+import { BODY_SPOT, LIGHTS, ROOMS, MAP_H, MAP_W, TILE, WINDOWS, clueSpot, isSolid, roomAt, roomCenter, roomOrigin, ROOM_BY_ID, ROOM_H, ROOM_W, type LightDef } from '../data/mansion';
 import { ClueMarker } from '../entities/ClueMarker';
 import { NpcSprite } from '../entities/NpcSprite';
 import { input } from '../game/input';
 import { net } from '../net/client';
+import { reducedMotion } from '../settings';
 import { bus, clueTitle, store } from '../state/store';
 import { ensureTextures } from './textures';
 
@@ -18,7 +19,6 @@ export interface Interactable { kind: 'npc' | 'clue'; id: string; label: string 
 export class MansionScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Container;
   private playerSprite!: Phaser.GameObjects.Image;
-  private light!: Phaser.GameObjects.Image;
   private npcs = new Map<string, NpcSprite>();
   private clues = new Map<string, ClueMarker>();
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'E', Phaser.Input.Keyboard.Key>;
@@ -28,6 +28,13 @@ export class MansionScene extends Phaser.Scene {
   private lastMoveSent = 0;
   private walkBob = 0;
   private unsubs: (() => void)[] = [];
+  // lighting: one darkness layer (half resolution) with soft holes cut for each light, plus warm glows
+  private dark!: Phaser.GameObjects.RenderTexture;
+  private eraser!: Phaser.GameObjects.Image;
+  private lamps: { def: LightDef; x: number; y: number; phase: number; glow: Phaser.GameObjects.Image }[] = [];
+  private playerGlow!: Phaser.GameObjects.Image;
+  private rainOnGlass: Phaser.GameObjects.TileSprite[] = [];
+  private readonly lowRes = 0.5;
 
   constructor() { super('MansionScene'); }
 
@@ -49,9 +56,7 @@ export class MansionScene extends Phaser.Scene {
 
     const start = roomCenter(ROOM_BY_ID.foyer);
     const px = start.x * TILE, py = (start.y + 2) * TILE;
-    this.light = this.add.image(px, py - 16, 'light').setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.32).setScale(1.35).setDepth(5000);
-    // Darken the whole mansion; the light pool around the detective brings the room back.
-    this.add.rectangle(0, 0, MAP_W * TILE, MAP_H * TILE, 0x04060a, 0.32).setOrigin(0).setDepth(4000);
+    this.buildLighting();
     const shadow = this.add.ellipse(0, 1, 20, 8, 0x000000, 0.45);
     this.playerSprite = this.add.image(0, -20, 'player');
     this.player = this.add.container(px, py, [shadow, this.playerSprite]);
@@ -93,7 +98,48 @@ export class MansionScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.cleanup());
   }
 
+  /** Darkness with soft light pools. Six lamps and the player, plus a handful of window streaks: cheap enough for a phone. */
+  private buildLighting(): void {
+    const w = MAP_W * TILE, h = MAP_H * TILE, r = this.lowRes;
+    this.dark = this.add.renderTexture(0, 0, Math.ceil(w * r), Math.ceil(h * r)).setOrigin(0).setScale(1 / r).setDepth(4000);
+    this.eraser = this.make.image({ key: 'light', add: false });
+    this.lamps = LIGHTS.map((def, i) => {
+      const room = ROOM_BY_ID[def.room];
+      const x = (room.col * ROOM_W + def.lx) * TILE, y = (room.row * ROOM_H + def.ly) * TILE;
+      const glow = this.add.image(x, y, 'light').setBlendMode(Phaser.BlendModes.ADD).setTint(def.color).setAlpha(0.2).setDepth(4100);
+      return { def, x, y, phase: i * 1.9, glow };
+    });
+    this.playerGlow = this.add.image(0, 0, 'light').setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd9a0).setAlpha(0.14).setDepth(4100);
+    // Rain running down the window glass
+    for (const win of WINDOWS) {
+      const t = this.add.tileSprite(win.x * TILE + 2, win.y * TILE + 5, TILE * 2 - 4, TILE - 10, 'rainstreak').setOrigin(0).setAlpha(0.75).setDepth(-400);
+      this.rainOnGlass.push(t);
+    }
+  }
+
+  private updateLighting(time: number, dt: number): void {
+    const r = this.lowRes, calm = reducedMotion();
+    const rt = this.dark;
+    rt.clear();
+    rt.fill(0x03040a, 0.8);
+    for (const l of this.lamps) {
+      // gentle candle / fire flicker: tiny amplitude, slow, and off for reduced motion
+      const f = calm ? 1 : 1 + l.def.flicker * (0.6 * Math.sin(time * 0.008 + l.phase) + 0.4 * Math.sin(time * 0.019 + l.phase * 2.3));
+      this.eraser.setScale(((l.def.radius * 2) / 512) * f * r).setAlpha(1);
+      rt.erase(this.eraser, l.x * r, l.y * r);
+      l.glow.setScale(((l.def.radius * 1.7) / 512) * f);
+    }
+    // soft light around the detective
+    const px = this.player.x, py = this.player.y - 14;
+    this.eraser.setScale(((150 * 2) / 512) * r).setAlpha(1);
+    rt.erase(this.eraser, px * r, py * r);
+    this.playerGlow.setPosition(px, py).setScale((150 * 1.5) / 512);
+    if (!calm) for (const t of this.rainOnGlass) { t.tilePositionY -= dt * 70; t.tilePositionX += dt * 14; }
+  }
+
   private cleanup(): void {
+    this.lamps = [];
+    this.rainOnGlass = [];
     this.unsubs.forEach((u) => u());
     this.unsubs = [];
     this.scale.off('resize', this.applyZoom, this);
@@ -172,10 +218,10 @@ export class MansionScene extends Phaser.Scene {
       }
     } else this.playerSprite.y = -20;
     this.player.setDepth(this.player.y);
-    this.light.setPosition(this.player.x, this.player.y - 16);
 
     for (const n of this.npcs.values()) n.tick(dt);
 
+    this.updateLighting(time, dt);
     this.updateRoom(false);
     this.updateNearby();
   }

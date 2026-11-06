@@ -41,7 +41,8 @@ export const ROOMS: RoomDef[] = [
   ] },
   { id: 'library', name: 'Library', col: 2, row: 0, floor: 0x1f2a22, floor2: 0x26332a, furniture: [
     { x: 1, y: 1, w: 6, h: 1, color: 0x3a2a1a, kind: 'shelf' },
-    { x: 10, y: 1, w: 5, h: 1, color: 0x3a2a1a, kind: 'shelf' },
+    { x: 10, y: 1, w: 2, h: 1, color: 0x3a2a1a, kind: 'shelf' },
+    { x: 12, y: 1, w: 3, h: 1, color: 0x4a3a3a, kind: 'fireplace' },
     { x: 3, y: 9, w: 3, h: 2, color: 0x4a3a28, kind: 'table' },
   ] },
   { id: 'dining_room', name: 'Dining Room', col: 0, row: 1, floor: 0x2c1a1c, floor2: 0x351f22, furniture: [
@@ -183,3 +184,29 @@ export function npcSpot(roomId: string, npcId: string): { x: number; y: number }
   const [ox, oy] = NPC_OFFSETS[npcId] ?? [0, 0];
   return { x: c.x + ox, y: c.y + oy };
 }
+
+// ---- lighting (kept small so it runs smoothly on a phone) ---------------------------------------------------
+export interface LightDef {
+  room: string;
+  lx: number; ly: number; // local tile coords
+  color: number; // warm pool tint
+  radius: number; // px
+  flicker: number; // 0 = steady, up to about 0.12 for a fire
+}
+/** One light per room, plus the player's. Six lights in total. */
+export const LIGHTS: LightDef[] = [
+  { room: 'kitchen', lx: 2.5, ly: 4.2, color: 0xffe3a8, radius: 190, flicker: 0.02 },
+  { room: 'study', lx: 4.2, ly: 4.4, color: 0xffc271, radius: 200, flicker: 0.035 }, // desk lamp
+  { room: 'library', lx: 13.5, ly: 2.8, color: 0xff9a4a, radius: 250, flicker: 0.11 }, // fireplace
+  { room: 'dining_room', lx: 12.5, ly: 6.6, color: 0xffd08a, radius: 210, flicker: 0.05 }, // candles
+  { room: 'foyer', lx: 3.8, ly: 5.2, color: 0xffd9a0, radius: 220, flicker: 0.03 },
+  { room: 'drawing_room', lx: 12.5, ly: 2.8, color: 0xff9a4a, radius: 230, flicker: 0.1 }, // fireplace
+];
+
+/** Windows on the outer walls (tile coords of the left tile; each is 2 tiles wide). Rain runs down them. */
+export const WINDOWS: { x: number; y: number; north: boolean }[] = ROOMS.flatMap((r): { x: number; y: number; north: boolean }[] => {
+  const ox = r.col * ROOM_W;
+  return r.row === 0
+    ? [{ x: ox + 3, y: 0, north: true }, { x: ox + 11, y: 0, north: true }]
+    : [{ x: ox + 3, y: MAP_H - 1, north: false }];
+});
