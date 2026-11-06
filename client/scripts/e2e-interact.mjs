@@ -42,15 +42,17 @@ await page.click('.gate-text'); await page.waitForTimeout(300); await page.keybo
 await page.waitForSelector('.menu-item');
 await startCase();
 
-// Evidence via the E key
-await placeNear('clue', 'c_body', 0, 14);
+// Evidence via the E key (clue ids come from the server; there is no fixed body clue)
+const clueIds = await page.evaluate(() => [...window.__game.scene.getScene('MansionScene').clues.keys()].sort());
+const c1 = clueIds[0], c2 = clueIds[1];
+await placeNear('clue', c1, 0, 14);
 await page.waitForTimeout(300);
 let prompt = await txt('.prompt.show');
-ok(/inspect/i.test(prompt), `prompt near the body: "${prompt.replace(/\s+/g, ' ')}"`);
+ok(/inspect object/i.test(prompt), `prompt before inspecting stays generic: "${prompt.replace(/\s+/g, ' ')}"`);
 await page.keyboard.press('e');
 await page.waitForSelector('.modal', { timeout: 4000 });
-await page.waitForFunction(() => /Alistair/.test(document.querySelector('.modal')?.innerText ?? ''), null, { timeout: 4000 }).catch(() => {});
-ok(/Alistair/i.test(await txt('.modal')), 'E key opens the evidence modal with the clue text');
+await page.waitForFunction(() => !/Looking closer/.test(document.querySelector('.modal')?.innerText ?? 'Looking closer'), null, { timeout: 4000 }).catch(() => {});
+ok(!/Looking closer|Nothing here/i.test(await txt('.modal')) && (await txt('.modal')).length > 40, 'E key opens the evidence modal with the clue text');
 await closeTop();
 
 // All five suspects: prompt, E, name plate, a question and a reply
@@ -83,12 +85,12 @@ ok((await page.locator('.nb-group h3.group').count()) === 5, 'notebook Statement
 await closeTop();
 
 // Touch path: tap the prompt button instead of pressing E
-await placeNear('clue', 'c_will', 0, 14);
+await placeNear('clue', c2, 0, 14);
 await page.waitForTimeout(300);
 await page.click('.prompt.show');
 await page.waitForSelector('.modal', { timeout: 4000 });
-await page.waitForFunction(() => /will/i.test(document.querySelector('.modal')?.innerText ?? ''), null, { timeout: 4000 }).catch(() => {});
-ok(/will/i.test(await txt('.modal')), 'tapping the prompt button inspects the clue');
+await page.waitForFunction(() => !/Looking closer/.test(document.querySelector('.modal')?.innerText ?? 'Looking closer'), null, { timeout: 4000 }).catch(() => {});
+ok(!/Looking closer|Nothing here/i.test(await txt('.modal')), 'tapping the prompt button inspects the clue');
 await closeTop();
 
 // Tap the sprite itself (checks the hit area is on the sprite, feet and body)
@@ -117,7 +119,7 @@ await page.waitForSelector('.verdict', { timeout: 6000 });
 await page.click('text=Return to menu');
 await page.waitForSelector('.menu-item');
 await startCase();
-await placeNear('clue', 'c_body', 0, 14);
+await placeNear('clue', c1, 0, 14);
 await page.waitForTimeout(300);
 await page.keyboard.press('e');
 await page.waitForSelector('.modal', { timeout: 4000 });

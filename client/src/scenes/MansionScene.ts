@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/audioManager';
-import { ROOMS, MAP_H, MAP_W, TILE, isSolid, roomAt, roomCenter, roomOrigin, ROOM_BY_ID } from '../data/mansion';
+import { BODY_SPOT, ROOMS, MAP_H, MAP_W, TILE, clueSpot, isSolid, roomAt, roomCenter, roomOrigin, ROOM_BY_ID } from '../data/mansion';
 import { ClueMarker } from '../entities/ClueMarker';
 import { NpcSprite } from '../entities/NpcSprite';
 import { input } from '../game/input';
 import { net } from '../net/client';
-import { bus, store } from '../state/store';
+import { bus, clueTitle, store } from '../state/store';
 import { ensureTextures } from './textures';
 
 const SPEED = 118; // px per second
@@ -42,6 +42,10 @@ export class MansionScene extends Phaser.Scene {
         fontFamily: 'Inter, sans-serif', fontSize: '10px', color: '#b8985a',
       }).setAlpha(0.55).setResolution(3).setDepth(-900).setLetterSpacing(3);
     }
+
+    // The victim lies in the Study. Scenery only: the server has no clue for the body.
+    const study = ROOM_BY_ID.study;
+    this.add.image((study.col * 16 + BODY_SPOT[0]) * TILE, (study.row * 12 + BODY_SPOT[1]) * TILE, 'body').setDepth(-500);
 
     const start = roomCenter(ROOM_BY_ID.foyer);
     const px = start.x * TILE, py = (start.y + 2) * TILE;
@@ -115,14 +119,20 @@ export class MansionScene extends Phaser.Scene {
     if (!w) return;
     for (const n of w.npcs) {
       let s = this.npcs.get(n.id);
-      if (!s) { s = new NpcSprite(this, n.id, n.x, n.y); this.npcs.set(n.id, s); }
-      s.setTarget(n.x, n.y);
+      if (!s) { s = new NpcSprite(this, n.id, n.roomId); this.npcs.set(n.id, s); }
+      s.setRoom(n.roomId);
     }
-    const found = new Set(store.state.foundClues.map((c) => c.id));
-    for (const c of w.clues) {
+    // The server sends clues by room only. Give each a spot in its room, by order within the room.
+    const perRoom: Record<string, number> = {};
+    for (const c of [...w.clues].sort((a, b) => a.id.localeCompare(b.id))) {
       let m = this.clues.get(c.id);
-      if (!m) { m = new ClueMarker(this, c.id, c.x, c.y, c.label); this.clues.set(c.id, m); }
-      m.setFound(found.has(c.id));
+      if (!m) {
+        const i = (perRoom[c.roomId] = (perRoom[c.roomId] ?? -1) + 1);
+        const spot = clueSpot(c.roomId, i);
+        m = new ClueMarker(this, c.id, spot.x, spot.y);
+        this.clues.set(c.id, m);
+      }
+      m.setFound(c.discovered, clueTitle(c.id));
     }
   }
 
@@ -155,9 +165,10 @@ export class MansionScene extends Phaser.Scene {
       this.walkBob += dt * 14;
       this.playerSprite.y = -20 + Math.sin(this.walkBob) * 1.4;
       if (time - this.stepAt > 340) { this.stepAt = time; audio.sfx('step'); }
-      if (time - this.lastMoveSent > 120) {
+      if (time - this.lastMoveSent > 250) {
         this.lastMoveSent = time;
-        net.send({ type: 'move', payload: { dx: +vx.toFixed(2), dy: +vy.toFixed(2) } });
+        // The server's schema only accepts integer directions in -1..1.
+        net.send({ type: 'move', dx: Math.sign(Math.round(vx)), dy: Math.sign(Math.round(vy)) });
       }
     } else this.playerSprite.y = -20;
     this.player.setDepth(this.player.y);

@@ -3,7 +3,7 @@ import type { Transport } from './transport';
 
 const MAX_ATTEMPTS = 8;
 
-/** Real WebSocket transport. Envelope: { type, payload } (DRAFT, see protocol.ts). Reconnects with backoff. */
+/** Real WebSocket transport. Flat JSON messages (shared/types.ts). Reconnects with backoff. */
 export class WsTransport implements Transport {
   private ws: WebSocket | null = null;
   private msgCb: (m: ServerMessage) => void = () => {};

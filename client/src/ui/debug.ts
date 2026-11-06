@@ -25,7 +25,7 @@ export function initDebug(): void {
       h('h4', null, 'DEBUG (` to close)'),
       pre(`fps ${fps()}  conn ${s.connection}  mode ${net.usingMock ? 'mock' : 'real'}\nroom ${room}  clock ${s.world ? formatClock(s.world.clock) : '-'}  tick ${s.world?.tick ?? '-'}\ndiamonds ${s.diamonds}  hintsLeft ${s.hintsLeft}`),
       h('h4', null, 'NPCs'),
-      pre((s.world?.npcs ?? []).map((n) => `${n.id.padEnd(9)} ${n.room.padEnd(8)} ${n.x.toFixed(1)},${n.y.toFixed(1)}`).join('\n') || '-'),
+      pre((s.world?.npcs ?? []).map((n) => `${n.id.padEnd(9)} ${n.roomId}`).join('\n') || '-'),
       h('h4', null, 'Server debug message'),
       pre(lastDebug ? JSON.stringify(lastDebug, null, 1) : 'none received'),
       h('h4', null, 'Recent messages'),

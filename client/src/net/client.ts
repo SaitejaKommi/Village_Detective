@@ -1,11 +1,11 @@
-import { bus, store } from '../state/store';
+import { bus, clueTitle, store } from '../state/store';
 import { loadPlayerId, savePlayerId } from '../settings';
-import type { ClientMessage, ServerMessage, ServerPayload, ServerType } from './protocol';
+import type { ClientMessage, ServerMessage, ServerMsg, ServerType } from './protocol';
 import { createTransport, USE_MOCK, type Transport } from './transport';
 
 export interface LogEntry { dir: 'in' | 'out'; type: string; t: number }
 
-/** Typed game client. Works the same over the mock and the real WebSocket. */
+/** Typed game client. Works the same over the mock and the real WebSocket (flat messages). */
 class GameClient {
   private transport: Transport | null = null;
   readonly log: LogEntry[] = [];
@@ -17,7 +17,11 @@ class GameClient {
     this.transport = t;
     t.onStatus((s) => {
       store.set({ connection: s });
-      if (s === 'online') this.send({ type: 'join', payload: { playerId: loadPlayerId() } });
+      if (s === 'online') {
+        // Resume the running case after a dropped socket. Otherwise start clean.
+        const resume = store.state.caseInfo && !store.state.gameOver ? store.state.sessionId ?? undefined : undefined;
+        this.send({ type: 'join', playerId: store.state.playerId ?? loadPlayerId(), sessionId: resume });
+      }
     });
     t.onMessage((m) => this.handle(m));
     t.connect();
@@ -31,14 +35,27 @@ class GameClient {
     this.transport?.send(msg);
   }
 
+  /**
+   * The server allows one case per session, so every new case starts on a fresh session:
+   * join with the playerId and no sessionId, and wait for the `session` reply.
+   */
+  newSession(): Promise<void> {
+    return new Promise((resolve) => {
+      const off = this.on('session', () => { off(); window.clearTimeout(t); resolve(); });
+      const t = window.setTimeout(() => { off(); resolve(); }, 6000);
+      store.set({ sessionId: null });
+      this.send({ type: 'join', playerId: store.state.playerId ?? loadPlayerId() });
+    });
+  }
+
   retry(): void {
     const t = this.transport as (Transport & { retry?: () => void }) | null;
     if (t?.retry) t.retry();
     else t?.connect();
   }
 
-  /** Typed subscription to a server message type. Returns an unsubscribe function. */
-  on<T extends ServerType>(type: T, fn: (payload: ServerPayload<T>) => void): () => void {
+  /** Typed subscription to a server message type. The handler receives the whole flat message. */
+  on<T extends ServerType>(type: T, fn: (msg: ServerMsg<T>) => void): () => void {
     return bus.on(`net:${type}`, fn);
   }
 
@@ -47,46 +64,47 @@ class GameClient {
     if (this.log.length > 60) this.log.shift();
     switch (msg.type) {
       case 'session':
-        if (msg.payload.playerId) { savePlayerId(msg.payload.playerId); store.set({ playerId: msg.payload.playerId }); }
+        savePlayerId(msg.playerId);
+        store.set({ playerId: msg.playerId, sessionId: msg.sessionId });
+        this.send({ type: 'get_profile' }); // the server does not push the profile on join
         break;
       case 'profile':
-        store.set({ profile: msg.payload, diamonds: msg.payload.diamonds, playerId: msg.payload.playerId });
-        savePlayerId(msg.payload.playerId);
+        store.set({ profile: msg, diamonds: msg.diamonds, playerId: msg.playerId });
         break;
       case 'case_started':
         store.resetCase();
-        store.set({ caseInfo: msg.payload });
+        store.set({ caseInfo: msg });
         break;
-      case 'state':
-        store.set({ world: msg.payload });
-        break;
-      case 'npc_say':
-        store.addLine(msg.payload.npcId, { who: 'npc', text: msg.payload.text, at: Date.now() });
-        break;
-      case 'clue_info': {
-        const p = msg.payload;
-        if (!store.state.foundClues.some((c) => c.id === p.clueId)) {
-          store.set({ foundClues: [...store.state.foundClues, { id: p.clueId, title: p.title, text: p.text, room: p.room }] });
-        }
+      case 'state': {
+        // Clues the server marks discovered carry their text. That is what the notebook lists.
+        const found = msg.clues
+          .filter((c) => c.discovered && c.text)
+          .map((c) => ({ id: c.id, title: clueTitle(c.id), text: c.text as string, room: c.roomId }));
+        const prev = store.state.foundClues;
+        const same = prev.length === found.length && prev.every((p, i) => p.id === found[i].id);
+        store.set({ world: msg, ...(same ? {} : { foundClues: found }) });
         break;
       }
+      case 'npc_say':
+        store.addLine(msg.npcId, { who: 'npc', text: msg.text, at: Date.now() });
+        break;
       case 'hint':
         store.set({
-          diamonds: msg.payload.diamonds,
-          hintsLeft: msg.payload.hintsLeft,
-          hints: [...store.state.hints, { tier: msg.payload.tier, text: msg.payload.text }],
+          diamonds: msg.diamonds,
+          hintsLeft: msg.hintsLeft,
+          hints: [...store.state.hints, { tier: msg.tier, text: msg.text }],
         });
         break;
       case 'diamonds_update':
-        store.set({ diamonds: msg.payload.balance });
+        store.set({ diamonds: msg.balance });
         break;
       case 'game_over':
-        store.set({ gameOver: msg.payload, diamonds: msg.payload.diamonds, accused: true });
+        store.set({ gameOver: msg, accused: true });
         break;
       default:
         break;
     }
-    bus.emit(`net:${msg.type}`, msg.payload);
+    bus.emit(`net:${msg.type}`, msg);
   }
 }
 

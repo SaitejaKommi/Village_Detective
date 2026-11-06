@@ -51,7 +51,9 @@ VITE_USE_MOCK=false
 VITE_WS_URL=ws://localhost:8080
 ```
 
-Restart `npm run dev`. The game code is identical in both modes. Both implement the `Transport` interface (`src/net/transport.ts`). The real one (`src/net/wsTransport.ts`) reconnects with backoff and re-sends `join` on reconnect. The message contract is drafted in `src/net/protocol.ts` and `BACKEND_REQUESTS.md` lists what still needs agreeing in `shared/types.ts`.
+Restart `npm run dev`. The game code is identical in both modes. Both implement the `Transport` interface (`src/net/transport.ts`). The real one (`src/net/wsTransport.ts`) reconnects with backoff and re-joins on reconnect. The wire protocol is the backend's own, flat JSON from `shared/types.ts` (for example `{ "type": "talk", "npcId": "julian", "text": "..." }`). `BACKEND_REQUESTS.md` lists the gaps that remain, the main one being that `inspect` only works in the foyer until the server tracks the player's room.
+
+Start the backend with `cd backend; npm install; npm run dev` (it listens on `ws://localhost:8080`; copy `backend/.env.example` to `.env` and add Groq or Gemini keys, or it falls back to scripted lines).
 
 ## Dev URL shortcuts (dev server only, stripped from production builds)
 
@@ -62,7 +64,7 @@ Jump straight to a screen. The mock starts a case automatically where needed.
 | `/?screen=menu` | Main menu (also `intro`, `difficulty`, `profile`, `settings`, `briefing`) |
 | `/?screen=game` | Mansion with HUD |
 | `/?screen=interrogation&npc=julian` | Interrogation (npc: `evelyn`, `julian`, `harold`, `margaret`, `victor`) |
-| `/?screen=evidence` | Evidence modal (`&clue=c_body`) |
+| `/?screen=evidence` | Evidence modal (`&clue=<clueId>`) |
 | `/?screen=notebook&tab=statements` | Notebook (tab: `clues`, `statements`, `suspects`) |
 | `/?screen=hint` / `/?screen=accuse` | Hint panel / accusation |
 | `/?screen=ending&result=won` | Reveal (`won` or `lost`) |
@@ -133,8 +135,9 @@ Keep licences and attributions in a file next to the audio if any asset requires
 
 ## Known limits
 
-- Player movement is simulated on the client (with wall collision). The server only receives movement input. See `BACKEND_REQUESTS.md`.
-- The mock has canned replies (keyword-matched), seven clues and one authored case with a random killer each run. It is for UI development, not for judging game design.
+- Player movement is simulated on the client (with wall collision). The server only receives integer direction input, and does not track the player's room yet (see `BACKEND_REQUESTS.md`).
+- Rain loudness has not been judged by ear. It now defaults to a low level with its own "Rain and ambience" slider in Settings.
+- The mock mirrors the real server's message shapes and rules, with canned keyword-matched replies, seven clues and a random killer each run. It is for UI development, not for judging game design.
 - Silhouette portraits are the permanent fallback. Real art needs sourcing (see above).
 - Not verified on a real iOS device. Layouts use `dvh`, safe-area insets and 16px inputs to avoid the usual iOS issues.
 - Notebook is list view only (the drag-and-drop evidence board is post-MVP). Wardrobe slots are locked placeholders.

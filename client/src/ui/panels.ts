@@ -3,7 +3,7 @@ import { audio } from '../audio/audioManager';
 import { npcDef, npcName, SUSPECT_IDS } from '../data/npcs';
 import { roomName } from '../data/mansion';
 import { net } from '../net/client';
-import { bus, store } from '../state/store';
+import { bus, formatHour, store } from '../state/store';
 import { h, icon } from './dom';
 import { bindStore } from './menuScreens';
 import { portrait } from './portrait';
@@ -14,12 +14,13 @@ const ERROR_TEXT: Record<string, string> = {
   INSUFFICIENT_DIAMONDS: 'You have no diamonds left to spend on a hint.',
   HINT_CAP_REACHED: 'No hints remain on this difficulty.',
   NO_ACTIVE_CASE: 'There is no case in progress.',
+  CASE_ALREADY_STARTED: 'A case is already running.',
+  CASE_ALREADY_SOLVED: 'The accusation has already been made.',
   RATE_LIMITED: 'Slow down a moment.',
-  NPC_UNAVAILABLE: 'They are not available to talk right now.',
-  ALREADY_ACCUSED: 'The accusation has already been made.',
-  UNKNOWN_CLUE: 'That item is no longer there.',
-  LLM_BUSY: 'The station is busy. Try again in a moment.',
-  SERVER_BUSY: 'The station is busy. Try again in a moment.',
+  NPC_NOT_FOUND: 'They are not available to talk right now.',
+  CLUE_NOT_FOUND: 'There is nothing to examine there.',
+  INVALID_MOVE: 'You cannot go that way.',
+  INVALID_MESSAGE: 'That did not go through. Try again.',
 };
 export function friendlyError(code: string | number, message?: string): string {
   return ERROR_TEXT[String(code)] ?? message ?? 'Something went wrong. Try again.';
@@ -28,7 +29,7 @@ export function friendlyError(code: string | number, message?: string): string {
 function suspectInfo(id: string): { name: string; role: string; appearance: string } {
   const s = store.state.caseInfo?.suspects.find((x) => x.id === id);
   const d = npcDef(id);
-  return { name: s?.name ?? d?.name ?? id, role: s?.role ?? d?.role ?? '', appearance: s?.appearance ?? d?.appearance ?? '' };
+  return { name: s?.name ?? d?.name ?? id, role: s?.role ?? d?.role ?? '', appearance: d?.appearance ?? '' };
 }
 
 const closeBtn = (onclick: () => void) =>
@@ -87,7 +88,7 @@ export function openInterrogation(npcId: string): void {
     if (!text || pending) return;
     input.value = ''; count.textContent = '0 / 300';
     store.addLine(npcId, { who: 'you', text, at: Date.now() });
-    net.send({ type: 'talk', payload: { npcId, text } });
+    net.send({ type: 'talk', npcId, text });
     setPending(true);
     timer = window.setTimeout(() => { if (pending) { setPending(false); toast(`${info.name} does not answer. Try again.`, 'error'); } }, 25000);
   };
@@ -97,7 +98,7 @@ export function openInterrogation(npcId: string): void {
   input.addEventListener('focus', () => window.setTimeout(() => { transcript.scrollTop = transcript.scrollHeight; }, 250));
 
   const offSay = net.on('npc_say', (p) => { if (p.npcId === npcId && pending) setPending(false); });
-  const offErr = net.on('error', () => { if (pending) setPending(false); });
+  const offErr = net.on('error', (e) => { if (pending) { setPending(false); toast(friendlyError(e.code, e.message), 'error'); } });
   const close = () => closeOverlay(panel);
   openOverlay(panel, { onClose: () => { offSay(); offErr(); window.clearTimeout(timer); bus.emit('interrogation:closed', npcId); } });
   render();
@@ -107,30 +108,35 @@ export function openInterrogation(npcId: string): void {
 // 9. Evidence inspection modal
 // ======================================================================================
 export function openEvidence(clueId: string, fallbackTitle = 'Evidence'): void {
-  const cached = store.state.foundClues.find((c) => c.id === clueId);
   const body = h('div');
   const iconBox = h('div', { class: 'evidence-icon' });
-  const close = modal(body, { className: 'evidence' });
-  let offInfo: (() => void) | undefined, offErr: (() => void) | undefined;
-  const cleanup = () => { offInfo?.(); offErr?.(); };
+  let offErr: (() => void) | undefined, offStore: (() => void) | undefined, timer: number | undefined;
+  const cleanup = () => { offErr?.(); offStore?.(); window.clearTimeout(timer); };
+  const close = modal(body, { className: 'evidence', onClose: cleanup });
 
   const show = (title: string, text: string, room?: string) => {
+    cleanup();
     iconBox.innerHTML = `<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">${clueIconPath(clueId, title)}</svg>`;
     body.replaceChildren(
-      closeBtn(() => { cleanup(); close(); }), iconBox,
+      closeBtn(() => close()), iconBox,
       h('div', { class: 'meta' }, room ? `Found in the ${roomName(room)}` : 'Evidence'),
       h('h2', null, title), h('p', { class: 'body', style: 'margin:0' }, text),
-      h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': '', onclick: () => { cleanup(); close(); } }, 'Add to notebook')),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': '', onclick: () => close() }, 'Add to notebook')),
     );
     (body.querySelector('[data-autofocus]') as HTMLElement | null)?.focus();
     audio.sfx('paper');
   };
+  const fail = (msg: string) => { cleanup(); body.replaceChildren(closeBtn(() => close()), h('h2', null, 'Nothing here'), h('p', { class: 'body muted' }, msg)); };
 
+  // The server answers `inspect` with an event and a fresh `state` where the clue is `discovered` and carries its text.
+  const have = () => store.state.foundClues.find((c) => c.id === clueId);
+  const cached = have();
   if (cached) { show(cached.title, cached.text, cached.room); return; }
-  body.replaceChildren(closeBtn(() => { cleanup(); close(); }), h('h2', null, fallbackTitle), h('p', { class: 'body muted' }, 'Looking closer…'));
-  offInfo = net.on('clue_info', (p) => { if (p.clueId === clueId) { cleanup(); show(p.title, p.text, p.room); } });
-  offErr = net.on('error', (p) => { cleanup(); body.replaceChildren(closeBtn(close), h('h2', null, 'Nothing here'), h('p', { class: 'body muted' }, friendlyError(p.code, p.message))); });
-  net.send({ type: 'inspect', payload: { clueId } });
+  body.replaceChildren(closeBtn(() => close()), h('h2', null, fallbackTitle), h('p', { class: 'body muted' }, 'Looking closer…'));
+  offStore = store.subscribe(() => { const c = have(); if (c) show(c.title, c.text, c.room); });
+  offErr = net.on('error', (p) => fail(friendlyError(p.code, p.message)));
+  timer = window.setTimeout(() => fail('You find nothing of use.'), 8000);
+  net.send({ type: 'inspect', clueId });
 }
 
 // ======================================================================================
@@ -230,7 +236,7 @@ export function openHint(): void {
     draw('wait');
     offHint = net.on('hint', () => { cleanup(); draw('result'); });
     offErr = net.on('error', (p) => { cleanup(); draw('blocked', friendlyError(p.code, p.message)); });
-    net.send({ type: 'hint_request', payload: {} });
+    net.send({ type: 'hint_request' });
   };
 
   if (s0.diamonds !== null && s0.diamonds <= 0) draw('blocked', 'You have no diamonds left, so hints are unavailable. Everything else stays free: keep questioning and searching.');
@@ -279,7 +285,7 @@ export function openAccuse(): void {
     body.replaceChildren(h('h2', null, 'The room falls silent…'), h('p', { class: 'body muted' }, 'Waiting for the verdict.'));
     const off = net.on('error', (p) => { off(); body.replaceChildren(x, h('h2', null, 'Not now'), h('p', { class: 'body muted' }, friendlyError(p.code, p.message)), h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: () => pick() }, 'Back'))); });
     net.on('game_over', () => { off(); close(); });
-    net.send({ type: 'accuse', payload: { npcId: id } });
+    net.send({ type: 'accuse', npcId: id });
   };
   pick();
 }
@@ -295,13 +301,20 @@ export function endingScreen(onMenu: () => void): HTMLElement {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const step = reduced ? 0 : 0.9;
 
-  const timeline = h('ol', { class: 'timeline', style: 'padding:0;margin:0 0 0 0' },
-    ...g.timeline.map((t, i) => h('li', { style: `animation-delay:${1.4 + i * step}s` }, t)));
+  // `time` in the case file is an hour of the day.
+  const timeline = h('ol', { class: 'timeline', style: 'padding:0;margin:0' },
+    ...g.timeline.map((t, i) => h('li', { style: `animation-delay:${1.4 + i * step}s` }, `${formatHour(t.time)} · ${t.place}. ${t.text}`)));
   const secretsAt = 1.4 + g.timeline.length * step + 0.4;
+  const victim = store.state.caseInfo?.briefing.victimId;
   const secrets = h('div', { class: 'secrets' },
-    ...Object.entries(g.secrets).map(([id, text], i) =>
+    ...Object.entries(g.secrets).filter(([id]) => id !== victim).map(([id, text], i) =>
       h('div', { class: `secret${id === g.killerId ? ' killer' : ''}`, style: `animation-delay:${secretsAt + i * (step * 0.6)}s` },
         portrait(id), h('div', null, h('b', null, npcName(id) + (id === g.killerId ? ' (the killer)' : '')), h('div', { class: 'muted' }, text)))));
+
+  // The reward arrives in the `diamonds_update` that follows `game_over`. We show the server's balance, never our own sum.
+  const balance = h('div', { class: 'muted' });
+  const reward = won ? h('div', { class: 'reward-box' }, icon('diamond'), 'Reward earned') : null;
+  bindStore(balance, (s) => { balance.textContent = s.diamonds === null ? '' : `Balance: ${s.diamonds} diamonds`; });
 
   return h('div', { class: 'ending' },
     h('div', { class: 'ending-inner' },
@@ -310,9 +323,7 @@ export function endingScreen(onMenu: () => void): HTMLElement {
       h('p', { class: 'killer-line' }, won
         ? `The killer was ${killer}. You named the right person.`
         : `${lastAccused ? 'You accused ' + npcName(lastAccused) + '. ' : ''}The killer was ${killer}.`),
-      h('div', { class: 'reveal-row' },
-        won ? h('div', { class: 'reward-box' }, icon('diamond'), `+${g.reward}`) : null,
-        h('div', { class: 'muted' }, `Balance: ${g.diamonds} diamonds`)),
+      h('div', { class: 'reveal-row' }, reward, balance),
       h('div', { class: 'timeline-wrap' }, h('h3', null, 'What really happened'), timeline),
       h('div', { class: 'secrets' }, h('h3', { style: 'margin:16px 0 8px;font-size:1rem;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-family:var(--font-sans);font-weight:500' }, 'Everyone had something to hide'), secrets),
       h('button', { class: 'btn primary', type: 'button', 'data-autofocus': '', style: 'margin-top:24px', onclick: onMenu }, 'Return to menu'),

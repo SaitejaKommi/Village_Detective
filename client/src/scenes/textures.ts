@@ -19,12 +19,9 @@ function drawMap(scene: Phaser.Scene): void {
     for (let y = 1; y < ROOM_H; y++) for (let x = 1; x < ROOM_W; x++) {
       const t = (x + y) % 2 === 0 ? r.floor : r.floor2;
       gr.fillStyle(t, 1).fillRect((ox + x) * TILE, (oy + y) * TILE, TILE, TILE);
-      if (r.id === 'garden') { // grass flecks
-        gr.fillStyle(0x2c4a30, 0.5).fillRect((ox + x) * TILE + ((x * 7 + y * 3) % 24), (oy + y) * TILE + ((x * 5 + y * 11) % 24), 2, 4);
-      }
     }
     // Rug under the centre
-    const rug = { study: 0x4a1f1f, library: 0x2a3a2a, kitchen: 0x303840, dining: 0x5a2a2a, foyer: 0x3a2a3a, garden: 0x2a3a2a }[r.id] ?? 0x333333;
+    const rug = { study: 0x4a1f1f, library: 0x2a3a2a, kitchen: 0x303840, dining_room: 0x5a2a2a, foyer: 0x3a2a3a, drawing_room: 0x4a2a4a }[r.id] ?? 0x333333;
     gr.fillStyle(rug, 0.55).fillRect((ox + 5) * TILE, (oy + 3) * TILE, 6 * TILE, 6 * TILE);
     gr.lineStyle(2, 0xb8985a, 0.25).strokeRect((ox + 5) * TILE + 6, (oy + 3) * TILE + 6, 6 * TILE - 12, 6 * TILE - 12);
   }

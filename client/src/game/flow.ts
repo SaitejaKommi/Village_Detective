@@ -3,7 +3,7 @@ import { audio } from '../audio/audioManager';
 import { npcDef } from '../data/npcs';
 import type { Difficulty } from '../data/difficulty';
 import { net } from '../net/client';
-import type { ErrorPayload } from '../net/protocol';
+import type { ServerMsg } from '../net/protocol';
 import type { Interactable } from '../scenes/MansionScene';
 import { getSettings } from '../settings';
 import { bus, store } from '../state/store';
@@ -36,7 +36,11 @@ class Flow {
     bus.on('overlay:change', (n: number) => { input.locked = n > 0 || !this.inGame; atmosphere.setDim(n > 0); document.getElementById('hud-root')?.classList.toggle('under', n > 0); });
     bus.on('toast', (m: string) => toast(m));
     bus.on('interact', (t: Interactable) => this.interact(t));
-    net.on('error', (p: ErrorPayload) => { if (!hasOverlay() && !this.loading) toast(friendlyError(p.code, p.message), 'error'); });
+    net.on('error', (p: ServerMsg<'error'>) => {
+      // `move` is sent constantly, so never toast protocol-level noise from it.
+      if (p.code === 'INVALID_MESSAGE' || p.code === 'INVALID_MOVE') return;
+      if (!hasOverlay() && !this.loading) toast(friendlyError(p.code, p.message), 'error');
+    });
     net.on('game_over', () => this.showEnding());
     store.subscribe((s) => this.syncConnection(s.connection));
   }
@@ -81,6 +85,7 @@ class Flow {
 
   toMenu(): void {
     this.inGame = false;
+    audio.setRainDuck(1);
     audio.startMusic('menu');
     atmosphere.setIntensity(1);
     atmosphere.setAutoLightning(true);
@@ -96,7 +101,7 @@ class Flow {
   }
 
   toProfile(): void {
-    net.send({ type: 'get_profile', payload: {} });
+    net.send({ type: 'get_profile' });
     showScreen(profileScreen(() => this.toMenu()));
   }
 
@@ -112,7 +117,8 @@ class Flow {
       const offOk = net.on('case_started', () => { done(true); showScreen(briefingScreen(() => this.begin(), () => this.toDifficulty())); });
       const offErr = net.on('error', (p) => { done(false); toast(friendlyError(p.code, p.message), 'error'); });
       const t = window.setTimeout(() => { done(false); toast('The station is not answering. Try again.', 'error'); }, 15000);
-      net.send({ type: 'start_case', payload: { difficulty } });
+      // One case per session on the server, so open a fresh session first, then start.
+      void net.newSession().then(() => net.send({ type: 'start_case', difficulty }));
     });
   }
 
@@ -122,6 +128,7 @@ class Flow {
     input.locked = false;
     clearScreen();
     audio.startMusic('game');
+    audio.setRainDuck(0.45);
     audio.sfx('door');
     atmosphere.setIntensity(0.6);
     atmosphere.setAutoLightning(true);
@@ -159,7 +166,7 @@ class Flow {
     stopMansion();
     setHud(null);
     store.resetCase();
-    net.send({ type: 'get_profile', payload: {} });
+    net.send({ type: 'get_profile' });
     this.toMenu();
   }
 

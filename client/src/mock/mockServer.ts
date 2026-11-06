@@ -1,19 +1,21 @@
-// MOCK SERVER. Implements the message contract in-browser behind the same Transport interface
-// as the real WebSocket client. Loaded lazily, only when VITE_USE_MOCK is not "false".
+// MOCK SERVER. Speaks the backend's FLAT protocol (shared/types.ts) in-browser, behind the same Transport
+// interface as the real WebSocket client. Loaded lazily, only when VITE_USE_MOCK is not "false".
 //
-// The mock plays the part of the server, so it is allowed to "know" the solution. It picks the killer at
-// random in start_case and keeps it private until game_over. The pretend-server diamond balance lives in
-// localStorage here and nowhere else: UI code never reads or writes it.
+// It mirrors the real server's rules: one case per session, `inspect` answered by an `event` plus a fresh
+// `state`, no profile push on join, integer-only `move`, string error codes, `game_over` followed by a reward
+// `diamonds_update`. It plays the part of the server, so it may "know" the solution: it picks the killer at
+// random in start_case and keeps it private until game_over. Content here is the mock's own (not the real
+// case file). The pretend balance lives in localStorage inside this module only. UI code never touches it.
 import type {
-  CaseStartedPayload, ClientMessage, ConnectionStatus, Difficulty, ErrorPayload, ProfilePayload,
-  ServerMessage, WorldState,
+  CaseStartedMessage, ClientMessage, ConnectionStatus, Difficulty, ErrorCode, HintMessage, RoomState,
+  ServerMessage, StateMessage, TimelineEvent,
 } from '../net/protocol';
 import type { Transport } from '../net/transport';
 import { NPCS, SUSPECT_IDS, VICTIM_ID, type NpcId } from '../data/npcs';
-import { roomAt, roomCenter, ROOM_BY_ID, roomName, routeBetween, ROOMS } from '../data/mansion';
+import { roomName, ROOMS, neighbours } from '../data/mansion';
 import { NEUTRAL_CLUES, SCRIPTS, TRUE_TIMELINE_HEAD, TRUE_TIMELINE_TAIL } from './script';
 
-const TICK_MS = 500;
+const TICK_MS = 1000; // like the real server
 const STORE_KEY = 'vol.mock.server';
 const START_DIAMONDS = 3;
 const HINT_COST = 1;
@@ -22,6 +24,7 @@ const CONFIG: Record<Difficulty, { maxHints: number; reward: number }> = {
   medium: { maxHints: 3, reward: 2 },
   hard: { maxHints: 1, reward: 3 },
 };
+const TIERS: HintMessage['tier'][] = ['direction', 'location', 'contradiction', 'contradiction'];
 
 interface PlayerRow { diamonds: number; casesSolved: number; outfitId: string }
 
@@ -44,23 +47,8 @@ function uuid(): string {
     : 'p-' + Math.random().toString(36).slice(2, 10);
 }
 
-interface MockNpc {
-  id: NpcId; x: number; y: number; room: string;
-  route: { x: number; y: number }[]; restUntil: number;
-}
-interface MockClue { id: string; room: string; x: number; y: number; label: string; title: string; text: string }
-
-const SPOTS: Record<string, [number, number][]> = {
-  study: [[11.5, 9.5], [4.5, 8.5], [12.5, 4.5]],
-  library: [[12.5, 9.5], [3.5, 3.5], [12.5, 4.5]],
-  kitchen: [[3.5, 9.5], [12.5, 4.5], [5.5, 3.5]],
-  dining: [[3.5, 9.5], [12.5, 3.5], [3.5, 4.5]],
-  foyer: [[3.5, 9.5], [12.5, 4.5], [13.5, 8.5]],
-  garden: [[3.5, 4.5], [4.5, 7.5], [6.5, 10.5]],
-};
-const OFFSETS: Record<string, [number, number]> = {
-  evelyn: [-2, -1.5], julian: [2, -1.5], harold: [-2, 1.5], margaret: [2, 1.5], victor: [0, -2.5],
-};
+interface MockNpc { id: NpcId; roomId: string; nextMoveAt: number }
+interface MockClue { id: string; roomId: string; text: string; discovered: boolean }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -71,21 +59,23 @@ export class MockTransport implements Transport {
   private msgCb: (m: ServerMessage) => void = () => {};
   private statusCb: (s: ConnectionStatus) => void = () => {};
   private playerId = '';
+  private sessionId = '';
   private online = false;
 
-  // private case state (the "truth")
-  private active = false;
+  // per-session case state (the "truth")
+  private started = false;
+  private solved = false;
   private difficulty: Difficulty = 'easy';
   private killer: NpcId = 'evelyn';
   private hintsUsed = 0;
   private lastHintAt = 0;
-  private accusedAlready = false;
+  private lastTalkAt = 0;
   private npcs: MockNpc[] = [];
   private clues: MockClue[] = [];
   private lastTalk: Record<string, number> = {};
   private genericIdx: Record<string, number> = {};
   private tick = 0;
-  private clock = 22 * 60 + 50;
+  private clock = 0;
   private timer: number | undefined;
 
   constructor() { current = this; }
@@ -109,38 +99,34 @@ export class MockTransport implements Transport {
   private reply(m: ServerMessage, delay = 0): void {
     window.setTimeout(() => { if (this.online) this.msgCb(m); }, delay);
   }
-  private error(code: string, message?: string): void {
-    const payload: ErrorPayload = { code, message };
-    this.reply({ type: 'error', payload });
+  private fail(code: ErrorCode, message: string): void {
+    this.reply({ type: 'error', code, message });
   }
 
   // ---- inbound ------------------------------------------------------------
   send(msg: ClientMessage): void {
     if (!this.online) return;
     switch (msg.type) {
-      case 'join': return this.onJoin(msg.payload.playerId);
+      case 'join': return this.onJoin(msg.playerId, msg.sessionId);
       case 'get_profile': return this.sendProfile();
-      case 'start_case': return this.onStartCase(msg.payload.difficulty);
-      case 'move': return; // client simulates movement locally; the mock ignores input
-      case 'talk': return this.onTalk(msg.payload.npcId, msg.payload.text);
-      case 'inspect': return this.onInspect(msg.payload.clueId);
+      case 'start_case': return this.onStartCase(msg.difficulty);
+      case 'move': return this.onMove(msg.dx, msg.dy);
+      case 'talk': return this.onTalk(msg.npcId, msg.text);
+      case 'inspect': return this.onInspect(msg.clueId);
       case 'hint_request': return this.onHint();
-      case 'accuse': return this.onAccuse(msg.payload.npcId);
-      default: return this.error('BAD_REQUEST', 'Unknown message');
+      case 'accuse': return this.onAccuse(msg.npcId);
+      default: return this.fail('INVALID_MESSAGE', 'Unsupported or malformed message');
     }
   }
 
-  private row(): PlayerRow {
-    const db = readDb();
-    return db[this.playerId];
-  }
+  private row(): PlayerRow { return readDb()[this.playerId]; }
   private save(row: PlayerRow): void {
     const db = readDb();
     db[this.playerId] = row;
     writeDb(db);
   }
 
-  private onJoin(playerId?: string): void {
+  private onJoin(playerId?: string, sessionId?: string): void {
     const db = readDb();
     if (playerId && db[playerId]) this.playerId = playerId;
     else {
@@ -148,41 +134,49 @@ export class MockTransport implements Transport {
       db[this.playerId] = { diamonds: START_DIAMONDS, casesSolved: 0, outfitId: 'default' };
       writeDb(db);
     }
-    this.reply({ type: 'session', payload: { sessionId: 'mock-' + uuid().slice(0, 8), playerId: this.playerId } });
-    this.sendProfile();
+    if (sessionId && sessionId === this.sessionId) {
+      // resume the running session
+      this.reply({ type: 'session', sessionId: this.sessionId, playerId: this.playerId });
+      if (this.started) this.sendState();
+      return;
+    }
+    // a join without a (matching) sessionId always opens a fresh session
+    window.clearInterval(this.timer);
+    this.sessionId = uuid();
+    this.started = false;
+    this.solved = false;
+    this.reply({ type: 'session', sessionId: this.sessionId, playerId: this.playerId });
+    // note: the real server does not push `profile` here. The client asks with get_profile.
   }
 
   private sendProfile(): void {
-    if (!this.playerId) return this.error('NO_SESSION', 'Join first');
+    if (!this.playerId) return this.fail('INVALID_MESSAGE', 'Send join first');
     const r = this.row();
-    const payload: ProfilePayload = {
-      playerId: this.playerId, diamonds: r.diamonds, casesSolved: r.casesSolved, outfitId: r.outfitId,
-    };
-    this.reply({ type: 'profile', payload });
+    this.reply({ type: 'profile', playerId: this.playerId, diamonds: r.diamonds, casesSolved: r.casesSolved, outfitId: r.outfitId });
   }
 
   private onStartCase(difficulty: Difficulty): void {
-    if (!this.playerId) return this.error('NO_SESSION', 'Join first');
-    if (!(difficulty in CONFIG)) return this.error('BAD_REQUEST', 'Unknown difficulty');
+    if (!this.playerId || !this.sessionId) return this.fail('INVALID_MESSAGE', 'Send join first');
+    if (this.started) return this.fail('CASE_ALREADY_STARTED', 'A case is already running in this session');
+    if (!(difficulty in CONFIG)) return this.fail('INVALID_MESSAGE', 'Unknown difficulty');
     this.difficulty = difficulty;
     this.killer = pick(SUSPECT_IDS);
     this.hintsUsed = 0;
-    this.accusedAlready = false;
-    this.active = true;
+    this.started = true;
+    this.solved = false;
     this.tick = 0;
-    this.clock = 22 * 60 + 50;
+    this.clock = 0;
     this.lastTalk = {};
     this.buildClues();
-    this.npcs = SUSPECT_IDS.map((id) => {
-      const c = roomCenter(ROOM_BY_ID[NPCS[id].home]);
-      const [ox, oy] = OFFSETS[id];
-      return { id, x: c.x + ox, y: c.y + oy, room: NPCS[id].home, route: [], restUntil: rand(2, 8) };
-    });
-    const payload: CaseStartedPayload = {
-      caseId: 'blackwood-manor',
-      title: 'The Blackwood Manor Murder',
+    this.npcs = SUSPECT_IDS.map((id) => ({ id, roomId: NPCS[id].home, nextMoveAt: rand(4, 10) }));
+
+    const rooms: RoomState[] = ROOMS.map((r) => ({ id: r.id, name: r.name, adjacent: neighbours(r.id) }));
+    const msg: CaseStartedMessage = {
+      type: 'case_started',
+      caseId: 'mock-blackwood-manor',
       difficulty,
       briefing: {
+        title: 'The Blackwood Manor Murder',
         victimId: VICTIM_ID,
         victimName: NPCS[VICTIM_ID].name,
         scene:
@@ -192,78 +186,69 @@ export class MockTransport implements Transport {
           'Five people were in the house. Each of them has something to hide, and not every secret is about the murder. ' +
           'Question them, search the rooms, and name the killer.',
       },
-      rooms: ROOMS.map((r) => ({ id: r.id, name: r.name })),
-      suspects: SUSPECT_IDS.map((id) => ({
-        id, name: NPCS[id].name, role: NPCS[id].role, appearance: NPCS[id].appearance,
-      })),
+      rooms,
+      suspects: SUSPECT_IDS.map((id) => ({ id, name: NPCS[id].name, role: NPCS[id].role, portraitId: id })),
     };
-    this.reply({ type: 'case_started', payload }, 350);
+    this.reply(msg, 350);
+    this.reply(this.stateMsg(), 380);
     window.clearInterval(this.timer);
     this.timer = window.setInterval(() => this.onTick(), TICK_MS);
   }
 
   private buildClues(): void {
-    const used: Record<string, number> = {};
-    const place = (room: string): [number, number] => {
-      const i = (used[room] = (used[room] ?? -1) + 1);
-      const [lx, ly] = SPOTS[room][i % SPOTS[room].length];
-      const r = ROOM_BY_ID[room];
-      return [r.col * 16 + lx, r.row * 12 + ly];
-    };
     const list: MockClue[] = [];
-    for (const n of NEUTRAL_CLUES) {
-      const [x, y] = place(n.room);
-      list.push({ id: n.id, room: n.room, x, y, label: n.label, title: n.title, text: n.text });
-    }
+    for (const n of NEUTRAL_CLUES) list.push({ id: n.id, roomId: n.room, text: n.text, discovered: false });
     for (const id of SUSPECT_IDS) {
       const s = SCRIPTS[id];
-      const useDamning = id === this.killer;
-      const c = useDamning ? s.damning : s.herring;
-      const [x, y] = place(c.room);
-      list.push({ id: `c_${id}`, room: c.room, x, y, label: 'Object', title: c.title, text: c.text });
+      const c = id === this.killer ? s.damning : s.herring;
+      list.push({ id: c.id, roomId: c.room, text: c.text, discovered: false });
     }
     this.clues = list;
   }
 
-  private onTick(): void {
-    this.tick++;
-    if (this.tick % 2 === 0) this.clock += 1;
-    const now = this.tick * (TICK_MS / 1000);
-    for (const n of this.npcs) {
-      const talking = now - (this.lastTalk[n.id] ?? -99) < 18;
-      if (talking) continue;
-      if (n.route.length === 0 && now >= n.restUntil) {
-        const dest = pick(ROOMS.filter((r) => r.id !== n.room)).id;
-        const [ox, oy] = OFFSETS[n.id];
-        const c = roomCenter(ROOM_BY_ID[dest]);
-        n.route = [...routeBetween(roomAt(n.x, n.y), dest), { x: c.x + ox, y: c.y + oy }];
-        n.restUntil = now + rand(6, 16);
-      }
-      const t = n.route[0];
-      if (t) {
-        const dx = t.x - n.x, dy = t.y - n.y, d = Math.hypot(dx, dy);
-        const step = 1.0;
-        if (d <= step) { n.x = t.x; n.y = t.y; n.route.shift(); }
-        else { n.x += (dx / d) * step; n.y += (dy / d) * step; }
-        n.room = roomAt(n.x, n.y);
-      }
-    }
-    const done = this.clues; // all clues are always present in the world
-    const payload: WorldState = {
+  private stateMsg(): StateMessage {
+    return {
+      type: 'state',
       tick: this.tick,
       clock: this.clock,
-      npcs: this.npcs.map((n) => ({ id: n.id, room: n.room, x: +n.x.toFixed(2), y: +n.y.toFixed(2) })),
-      clues: done.map((c) => ({ id: c.id, room: c.room, x: c.x, y: c.y, label: c.label })),
+      player: { id: this.playerId, roomId: 'foyer', position: { x: 0, y: 0 } },
+      // Like the real server: NPCs carry a roomId and meaningless small-integer positions.
+      npcs: this.npcs.map((n, i) => ({ id: n.id, name: NPCS[n.id].name, roomId: n.roomId, position: { x: 1 + (i % 4), y: 1 + (i % 3) } })),
+      clues: this.clues.map((c) => ({ id: c.id, roomId: c.roomId, discovered: c.discovered, text: c.discovered ? c.text : undefined })),
     };
-    this.msgCb({ type: 'state', payload });
+  }
+  private sendState(): void { this.reply(this.stateMsg()); }
+
+  private onTick(): void {
+    if (this.solved) return;
+    this.tick++;
+    this.clock++;
+    const now = this.tick;
+    for (const n of this.npcs) {
+      const talking = now - (this.lastTalk[n.id] ?? -99) < 18;
+      if (talking || now < n.nextMoveAt) continue;
+      n.roomId = pick(neighbours(n.roomId)); // NPCs hop to an adjacent room, like the real server
+      n.nextMoveAt = now + rand(8, 18);
+    }
+    if (this.online) this.msgCb(this.stateMsg());
+  }
+
+  private onMove(dx: number, dy: number): void {
+    // The real server's schema only accepts integers in -1..1.
+    const okv = (v: unknown) => Number.isInteger(v) && (v as number) >= -1 && (v as number) <= 1;
+    if (!okv(dx) || !okv(dy)) return this.fail('INVALID_MESSAGE', 'Unsupported or malformed message');
+    if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
   }
 
   private onTalk(npcId: string, textRaw: string): void {
-    if (!this.active) return this.error('NO_ACTIVE_CASE');
+    if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
     const text = String(textRaw ?? '').trim();
-    if (!SUSPECT_IDS.includes(npcId as NpcId)) return this.error('NPC_UNAVAILABLE', 'No one by that name can answer.');
-    if (text.length < 1 || text.length > 300) return this.error('BAD_REQUEST', 'Say something, in 300 characters or fewer.');
-    this.lastTalk[npcId] = this.tick * (TICK_MS / 1000);
+    if (text.length < 1 || text.length > 300) return this.fail('INVALID_MESSAGE', 'Say something, in 300 characters or fewer.');
+    const now = Date.now();
+    if (now - this.lastTalkAt < 1000) return this.fail('RATE_LIMITED', 'Wait a moment before speaking again');
+    this.lastTalkAt = now;
+    if (!SUSPECT_IDS.includes(npcId as NpcId)) return this.fail('NPC_NOT_FOUND', 'That suspect is not available');
+    this.lastTalk[npcId] = this.tick;
     const s = SCRIPTS[npcId];
     let line: string | undefined;
     if (/where|alibi|when|ten|10|night|doing|were you/i.test(text)) line = s.alibi;
@@ -272,61 +257,62 @@ export class MockTransport implements Transport {
       const i = (this.genericIdx[npcId] = (this.genericIdx[npcId] ?? -1) + 1);
       line = s.generic[i % s.generic.length];
     }
-    this.reply({ type: 'npc_say', payload: { npcId, text: line } }, rand(700, 1800));
+    this.reply({ type: 'npc_say', npcId, text: line }, rand(700, 1800));
   }
 
   private onInspect(clueId: string): void {
-    if (!this.active) return this.error('NO_ACTIVE_CASE');
+    if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
     const c = this.clues.find((x) => x.id === clueId);
-    if (!c) return this.error('UNKNOWN_CLUE');
-    this.reply({ type: 'clue_info', payload: { clueId: c.id, title: c.title, text: c.text, room: c.room } }, 250);
+    if (!c) return this.fail('CLUE_NOT_FOUND', 'No such clue');
+    c.discovered = true;
+    // The real server replies with an event carrying the text, then a fresh state with `discovered: true`.
+    this.reply({ type: 'event', kind: 'clue', text: c.text }, 200);
+    this.reply(this.stateMsg(), 210);
   }
 
   private onHint(): void {
-    if (!this.active) return this.error('NO_ACTIVE_CASE');
+    if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
     const now = Date.now();
-    if (now - this.lastHintAt < 600) return this.error('RATE_LIMITED', 'Slow down.');
+    if (now - this.lastHintAt < 1000) return this.fail('RATE_LIMITED', 'Wait a moment before asking for another hint');
     this.lastHintAt = now;
     const cfg = CONFIG[this.difficulty];
-    if (this.hintsUsed >= cfg.maxHints) return this.error('HINT_CAP_REACHED');
+    if (this.hintsUsed >= cfg.maxHints) return this.fail('HINT_CAP_REACHED', 'No hints remaining for this case');
     const row = this.row();
-    if (row.diamonds < HINT_COST) return this.error('INSUFFICIENT_DIAMONDS'); // balance never goes below 0
+    if (row.diamonds < HINT_COST) return this.fail('INSUFFICIENT_DIAMONDS', 'Not enough diamonds'); // never below 0
     row.diamonds -= HINT_COST;
     this.save(row);
     this.hintsUsed++;
-    const tier = Math.min(this.hintsUsed, 3);
     const damning = SCRIPTS[this.killer].damning;
-    const text = [
+    const texts = [
       'Listen again to what each of them said about where they were at ten. One account will not survive a second look.',
       `Search the ${roomName(damning.room)}. Something there does not belong to the story you were told.`,
-      `Compare "${damning.title}" with what the household told you about the evening. One alibi does not hold.`,
-    ][tier - 1];
+      'Compare the evidence you found with what the household told you. One alibi does not hold.',
+      'Ask each suspect where they were at twenty past ten, then compare the answers with your clues.',
+    ];
     this.reply({
-      type: 'hint',
-      payload: { tier, text, cost: HINT_COST, diamonds: row.diamonds, hintsLeft: cfg.maxHints - this.hintsUsed },
+      type: 'hint', tier: TIERS[this.hintsUsed - 1], text: texts[this.hintsUsed - 1], cost: HINT_COST,
+      diamonds: row.diamonds, hintsLeft: cfg.maxHints - this.hintsUsed,
     }, 450);
-    this.reply({ type: 'diamonds_update', payload: { balance: row.diamonds, reason: 'hint' } }, 460);
+    this.reply({ type: 'diamonds_update', balance: row.diamonds, reason: 'hint' }, 460);
   }
 
   private onAccuse(npcId: string): void {
-    if (!this.active) return this.error('NO_ACTIVE_CASE');
-    if (this.accusedAlready) return this.error('ALREADY_ACCUSED');
-    if (!SUSPECT_IDS.includes(npcId as NpcId)) return this.error('BAD_REQUEST', 'You must accuse one of the suspects.');
-    this.accusedAlready = true;
-    this.active = false;
+    if (!this.started) return this.fail('NO_ACTIVE_CASE', 'Start a case first');
+    if (this.solved) return this.fail('CASE_ALREADY_SOLVED', 'This case is already closed');
+    if (!SUSPECT_IDS.includes(npcId as NpcId)) return this.fail('NPC_NOT_FOUND', 'That suspect is not available');
+    this.solved = true;
     window.clearInterval(this.timer);
     const won = npcId === this.killer;
     const row = this.row();
     const reward = won ? CONFIG[this.difficulty].reward : 0;
     if (won) { row.diamonds += reward; row.casesSolved += 1; this.save(row); }
-    const timeline = [...TRUE_TIMELINE_HEAD, SCRIPTS[this.killer].timelineLine, ...TRUE_TIMELINE_TAIL];
+    const killerEvent = { time: 23, place: roomName(SCRIPTS[this.killer].damning.room), actorId: this.killer, text: SCRIPTS[this.killer].timelineLine };
+    const timeline: TimelineEvent[] = [...TRUE_TIMELINE_HEAD, killerEvent, ...TRUE_TIMELINE_TAIL];
     const secrets: Record<string, string> = {};
     for (const id of SUSPECT_IDS) secrets[id] = SCRIPTS[id].secret;
-    if (won) this.reply({ type: 'diamonds_update', payload: { balance: row.diamonds, reason: 'reward' } }, 700);
-    this.reply({
-      type: 'game_over',
-      payload: { won, killerId: this.killer, timeline, secrets, reward, diamonds: row.diamonds },
-    }, 800);
+    // Like the real server: game_over has no reward field. The new balance follows in diamonds_update.
+    this.reply({ type: 'game_over', won, killerId: this.killer, timeline, secrets }, 800);
+    if (won) this.reply({ type: 'diamonds_update', balance: row.diamonds, reason: 'reward' }, 850);
   }
 
   /** DEV ONLY: set the pretend balance (to test the empty-diamonds state). */
@@ -339,7 +325,7 @@ export class MockTransport implements Transport {
 
   /** DEV ONLY: accuse correctly or incorrectly without playing. */
   devAccuse(won: boolean): void {
-    if (!this.active) return;
+    if (!this.started || this.solved) return;
     const wrong = SUSPECT_IDS.find((id) => id !== this.killer)!;
     this.onAccuse(won ? this.killer : wrong);
   }

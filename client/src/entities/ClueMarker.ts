@@ -4,16 +4,15 @@ import { TILE } from '../data/mansion';
 /** A gold glint marking an inspectable object. Dims once inspected. Slow pulse only. */
 export class ClueMarker extends Phaser.GameObjects.Container {
   readonly clueId: string;
-  readonly label: string;
+  /** Generic until inspected, because the id names the object (and so could hint at the answer). */
+  label = 'Object';
   private glint: Phaser.GameObjects.Image;
 
-  constructor(scene: Phaser.Scene, id: string, tx: number, ty: number, label: string) {
+  constructor(scene: Phaser.Scene, id: string, tx: number, ty: number) {
     super(scene, tx * TILE, ty * TILE);
     this.clueId = id;
-    this.label = label;
     this.glint = scene.add.image(0, -6, 'clue');
     this.add(this.glint);
-    if (id === 'c_body') this.addAt(scene.add.image(0, 4, 'body'), 0);
     this.setSize(40, 40);
     this.setInteractive(new Phaser.Geom.Rectangle(-24 + 20, -26 + 20, 48, 48), Phaser.Geom.Rectangle.Contains);
     this.setDepth(this.y - 1);
@@ -21,5 +20,8 @@ export class ClueMarker extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
-  setFound(found: boolean): void { this.glint.setTint(found ? 0x777777 : 0xffffff).setScale(found ? 0.7 : 1); }
+  setFound(found: boolean, title: string): void {
+    this.label = found ? title : 'Object';
+    this.glint.setTint(found ? 0x777777 : 0xffffff).setScale(found ? 0.7 : 1);
+  }
 }
